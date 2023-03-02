@@ -26,6 +26,10 @@ if_redo=$8
 ## clean-up some medial file
 if_cleanup=$9 
 ## directory_setup
+
+exec > >(tee "Logs/${rest}_01_funcpreproc_log.txt") 2>&1
+set -x 
+
 highres_rpi=${anat_dir}/reg/highres_rpi.nii.gz
 func_min_dir=${func_dir}/${func_min_dir_name}
 

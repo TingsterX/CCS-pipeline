@@ -6,6 +6,7 @@
 ## Ting Xu 202204, BIDS format input
 ##########################################################################################################################
 
+
 ## ccs directory
 ccs_dir=$1
 ## name of the anat directory
@@ -24,6 +25,9 @@ func_reg_dir_name=$7
 res=$8
 ## if rerun
 if_rerun=$9
+
+exec > >(tee "Logs/${rest}_02_funcregister_func2std_log.txt") 2>&1
+set -x 
 
 ## directory setup
 anat_reg_dir=${anat_dir}/${anat_reg_dir_name}

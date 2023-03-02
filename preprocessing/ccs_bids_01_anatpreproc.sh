@@ -23,6 +23,10 @@ gcut=$7
 ## directory setup
 CCSDIR=$8
 
+## Setting up logging
+exec > >(tee "Logs/${subject}_01_anatpreproc_log.txt") 2>&1
+set -x 
+
 # directory example
 # anat_dir=${dir}/${subject}/${session_name}/anat # BIDS format
 # SUBJECTS_DIR=${dir}/${subject}/${session_name} #FREESURFER SETUP
@@ -46,8 +50,8 @@ bet_thr_tight=0.3 ; bet_thr_loose=0.1
 if [[ "${do_denoise}" = "true" ]]
 then
   for (( n=1; n <= ${num_scans}; n++ )); do
-    if [ ! -e ${anat_dir}/${anat}${n}_denoise.nii.gz ]; then
-    DenoiseImage -i ${anat_dir}/${anat}${n}.nii.gz -o ${anat_dir}/${anat}${n}_denoise.nii.gz -d 3
+    if [ ! -e ${anat_dir}/${anat}_denoise.nii.gz ]; then
+    DenoiseImage -i ${anat_dir}/${anat}.nii.gz -o ${anat_dir}/${anat}${n}_denoise.nii.gz -d 3
     fi
   done
 fi
@@ -64,8 +68,8 @@ then
 else
 	for (( n=1; n <= ${num_scans}; n++ ))
        	do
-		3drefit -deoblique ${anat_dir}/${anat}${n}.nii.gz
-		mri_convert --in_type nii ${anat}${n}.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/00${n}.mgz
+		3drefit -deoblique ${anat_dir}/${anat}.nii.gz
+		mri_convert --in_type nii ${anat}.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/00${n}.mgz
 	done
 fi
 echo "Auto reconstruction stage in Freesurfer (Take half hour ...)"

@@ -31,6 +31,9 @@ res=${11}
 ## redo_reg
 redo_reg=${12}
 
+exec > >(tee "Logs/${subject}_02_funcregister_func2anat_log.txt") 2>&1
+set -x 
+
 ## directory setup
 anat_reg_dir=${anat_dir}/${anat_reg_dir_name}
 func_min_dir=${func_dir}/${func_min_dir_name}

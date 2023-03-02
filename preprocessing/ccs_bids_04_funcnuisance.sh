@@ -6,6 +6,7 @@
 ## Ting Xu, 202204, BIDS format input
 ##########################################################################################################################
 
+
 ## func filename (no extension)
 rest=$1
 ## func directory
@@ -22,6 +23,9 @@ nuisance_dir_name=$6
 svd=$7
 ## if rerun
 if_rerun=$8
+
+exec > >(tee "Logs/${rest}_04_funcnuisance_log.txt") 2>&1
+set -x 
 
 
 ## directory setup

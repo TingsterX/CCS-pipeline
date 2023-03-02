@@ -6,6 +6,7 @@
 ## Ting Xu, 202204, BIDS format input
 ##########################################################################################################################
 
+
 ## anat_directory
 anat_dir=$1
 ## anat registration directory
@@ -42,6 +43,9 @@ ccs_dir=${16}
 if_rerun=${17}
 ## do_anat2func
 do_func2anat=true
+
+exec > >(tee "Logs/${rest}_05_funcpreproc_vol_log.txt") 2>&1
+set -x 
 
 ## directory setup
 anat_reg_dir=${anat_dir}/${anat_reg_dir_name}

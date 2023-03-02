@@ -6,6 +6,7 @@
 ## Ting Xu, 202204, BIDS format input
 ##########################################################################################################################
 
+
 ## anat_dir
 anat_dir=$1
 ## SUBJECTS_DIR
@@ -22,6 +23,9 @@ func_reg_dir_name=$6
 func_seg_dir_name=$7
 ## if rerun
 if_redo=$8
+
+exec > >(tee "Logs/${subject}_03_funcsegment_log.txt") 2>&1
+set -x 
 
 ## directory setup
 func_reg_dir=${func_dir}/${func_reg_dir_name}

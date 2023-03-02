@@ -21,6 +21,10 @@ subject=$4
 ## name of anatomical registration directory
 anat_reg_dir_name=$5
 
+exec > >(tee "Logs/${subject}_02_anatregister_log.txt") 2>&1
+set -x 
+
+
 if [ $# -lt 4 ];
 then
         echo -e "\033[47;35m Usage: $0 subject analysis_dir session_name ccs_dir\033[0m"

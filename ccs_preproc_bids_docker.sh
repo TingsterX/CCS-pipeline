@@ -2,16 +2,16 @@
 ##########################################################################################################################
 ## docker image: https://hub.docker.com/r/tingsterx/ccs-bids
 ## export PATH for docker
-. /neurodocker/startup.sh
-export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4
+#. /neurodocker/startup.sh
+export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=6
 ##########################################################################################################################
 ################### Setup code and data directory 
 ## ccs template directory
-ccs_dir=/opt/ccs
+ccs_dir=/home/salldritt/projects/Func_Pipeline/CCS-pipeline/preprocessing/templates
 ## directory where scripts are located
-scripts_dir=/opt/ccs/preprocessing
+scripts_dir=/home/salldritt/projects/Func_Pipeline/CCS-pipeline/preprocessing
 ## full/path/to/site
-analysisdirectory=/data
+analysisdirectory=/home/salldritt/projects/Func_Pipeline/CCS-pipeline/Data/site-ucdavis
 ################### Setup data 
 # subject ID: e.g. sub-001
 subject=$1
@@ -30,7 +30,7 @@ run_func=true
 ## anat_dir_name
 anat_dir_name=anat
 ## name of anatomical scan (no extension)
-anat_name=T1w
+anat_name=${subject}_${session_name}_${run_name}_T1w
 ## if do anat registration
 do_anat_reg=true 
 ## if do anat segmentation
@@ -67,7 +67,7 @@ func_surfFS_dir_name=func_surf_fs
 ## func surface dir name (workbench version) - not used yet
 func_surfWB_dir_name=func_surf_wb
 ## number of volume dropping
-numDropping=0
+numDropping=5
 ## func to anat reg method: fsbbr flirtbbr flirt
 reg_method=fsbbr
 ## resolution of func data (3mm)
@@ -86,16 +86,16 @@ lp=0.1
 ## smooth kernel FWHM
 FWHM=6
 ## write out resolution of preprocessed data (in anat space)
-res_anat=3
+res_anat=1
 ## write out resolution of preprocessed data in standard (mni152) space
-res_std=3
+res_std=1
 ## cleanup the existing preprocessed data
 if_rerun=false
 ##########################################################################################################################
 ## standard brain
-standard_head=${FSLDIR}/data/standard/MNI152_T1_2mm.nii.gz
-standard_brain=${FSLDIR}/data/standard/MNI152_T1_2mm_brain.nii.gz
-standard_template=${ccs_dir}/templates/MNI152_T1_3mm_brain.nii.gz
+standard_head=${FSLDIR}/data/standard/MacaqueYerkes19_T1w_0.5mm.nii.gz
+standard_brain=${FSLDIR}/data/standard/MacaqueYerkes19_T1w_0.5mm_brain.nii.gz
+standard_template=${ccs_dir}/templates/MacaqueYerkes19_T1w_1.0mm_brain.nii.gz
 fsaverage=fsaverage5
 ##########################################################################################################################
 
@@ -105,6 +105,12 @@ SUBJECTS_DIR=${analysisdirectory}/${subject}/${session_name}
 func_dir=${analysisdirectory}/${subject}/${session_name}/${run_name}
 TR_file=${func_dir}/TR.txt
 tpattern_file=${func_dir}/SliceTiming.txt
+
+## Set up logging directory in working directory
+if [ ! -d "./Logs/" ]
+then
+  mkdir ./Logs
+fi
 
 echo "-----------------------------------------------------"
 echo "Preprocessing of data: ${subject} ${session_name} ${run_name}..."

@@ -19,6 +19,9 @@ use_gpu=$5
 ## if_rerun
 if_rerun=$6
 
+exec > >(tee "Logs/${subject}_01_anatsurfrecon_log.txt") 2>&1
+set -x 
+
 ## directory setup
 anat_seg_dir=${anat_dir}/segment
 
