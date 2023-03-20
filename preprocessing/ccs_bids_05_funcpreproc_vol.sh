@@ -54,7 +54,7 @@ nuisance_dir=${func_dir}/${nuisance_dir_name}
 func_proc_dir=${func_dir}/${func_proc_dir_name}
 
 ## template
-standard=${ccs_dir}/templates/MNI152_T1_${res_std}mm.nii.gz
+standard=${ccs_dir}/templates/MacaqueYerkes19_T1w_${res_std}mm.nii.gz
 ## input data
 func_input=${func_reg_dir}/${rest}_gms.nii.gz
 func_mask=${func_reg_dir}/${rest}_pp_mask.nii.gz
@@ -200,19 +200,19 @@ fi
 
 ## 7. register to template space
 echo ">> Apply func-anat-std registration to func_pp_* data"
-if [ ! -f ${rest}_pp_mask.mni152.${res_std}mm.nii.gz ]; then
-  echo "RUN >> Mask to Template Space: ${rest}_pp_mask.mni152.${res_std}mm.nii.gz" 
-  applywarp --interp=nn --ref=${standard} --in=${func_mask} --out=${rest}_pp_mask.mni152.${res_std}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=${func_reg_dir}/example_func2highres.mat
+if [ ! -f ${rest}_pp_mask.yerkes.${res_std}mm.nii.gz ]; then
+  echo "RUN >> Mask to Template Space: ${rest}_pp_mask.yerkes.${res_std}mm.nii.gz" 
+  applywarp --interp=nn --ref=${standard} --in=${func_mask} --out=${rest}_pp_mask.yerkes.${res_std}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=${func_reg_dir}/example_func2highres.mat
 else
-  echo "SKIP >> Mask to Template Space: ${rest}_pp_mask.mni152.${res_std}mm.nii.gz" 
+  echo "SKIP >> Mask to Template Space: ${rest}_pp_mask.yerkes.${res_std}mm.nii.gz" 
 fi
 for func_pp in ${func_pp_list}; do
-  if [ ! -f ${func_pp}.mni152.${res_std}mm.nii.gz ]; then
-    echo "RUN >> Data to Template Space: ${func_pp}.mni152.${res_std}mm.nii.gz"
-    applywarp --interp=spline --ref=${standard} --in=${func_pp} --out=${func_pp}.mni152.${res_std}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=${func_reg_dir}/example_func2highres.mat
-    mri_mask ${func_pp}.mni152.${res_std}mm.nii.gz ${rest}_pp_mask.mni152.${res_std}mm.nii.gz ${func_pp}.mni152.${res_std}mm.nii.gz
+  if [ ! -f ${func_pp}.yerkes.${res_std}mm.nii.gz ]; then
+    echo "RUN >> Data to Template Space: ${func_pp}.yerkes.${res_std}mm.nii.gz"
+    applywarp --interp=spline --ref=${standard} --in=${func_pp} --out=${func_pp}.yerkes.${res_std}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=${func_reg_dir}/example_func2highres.mat
+    mri_mask ${func_pp}.yerkes.${res_std}mm.nii.gz ${rest}_pp_mask.yerkes.${res_std}mm.nii.gz ${func_pp}.yerkes.${res_std}mm.nii.gz
   else
-    echo "SKIP >> Data to Template Space: ${func_pp}.mni152.${res_std}mm.nii.gz"
+    echo "SKIP >> Data to Template Space: ${func_pp}.yerkes.${res_std}mm.nii.gz"
   fi
 done
 

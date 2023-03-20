@@ -6,38 +6,101 @@
 ## Ting Xu, BIDS format input
 ##########################################################################################################################
 
-## anat_dir
-anat_dir=$1
-## FS SUBJECTS_DIR
-SUBJECTS_DIR=$2 # 
-## subject
-subject=$3
-## brain mask name: fs, tight, loose, edit
-mask_name=$4
-## if use GPU
-use_gpu=$5
-## if_rerun
-if_rerun=$6
+while test $# -gt 0; do
+  case "$1" in
+    -h|--help)
+      shift
+			echo "ANAT SURF-RECON 01"
+			echo ""
+			echo "USAGE:"
+			echo ""
+			echo "-d: Input base working directory (/path/to/subject_folder)"
+			echo "--subject: Sub name (sub-032125)"
+			echo "--session: Ses name (ses-001)"
+			echo "--mask: Type of mask to use (fs, tight, loose, edit, manual)"
+			echo "--use-gpu: gpu = true"
+			echo "--rerun: rerun = true"
+			echo ""
+			exit 0
+			;;
+    -d)
+      shift
+      if test $# -gt 0; then
+        export base_directory=$1
+      else
+        echo "Need to specify input working directory (path/to/subject_folder)"
+      fi
+      shift
+      ;;
+    --subject*)
+      shift
+			if test $# -gt 0; then
+				export subject=`echo $1 | sed -e 's/^[^=]*=//g'`
+			else
+				echo "Need to specify subject number (sub-******)"
+			fi
+			shift
+			;;
+    --session*)
+			shift
+			if test $# -gt 0; then
+				export session=`echo $1 | sed -e 's/^[^=]*=//g'`
+			else
+				echo "Need to specify session number"
+			fi
+			shift
+			;;
+    --mask*)
+      shift
+      if test $# -gt 0; then
+        export mask_name=$1
+      else
+        echo "Need to specify type of mask used (fs, tight, loose, edit, manual)"
+      fi
+      shift
+      ;;
+    --use-gpu)
+      shift
+      use_gpu=true
+      ;;
+    --rerun)
+      shift
+      if_rerun=true
+      ;;
+    *)
+      echo "Unspecified input"
+      exit 0
+  esac
+done
 
-exec > >(tee "Logs/${subject}_01_anatsurfrecon_log.txt") 2>&1
-set -x 
+exec > >(tee "Logs/${subject}/01_anatsurfrecon_log.txt") 2>&1
+set -x
+
+if [ -z ${mask_name} ]; then mask_name=fs-bet; fi
+if [ -z ${use_gpu} ]; then use_gpu=false; fi
+if [ -z ${if_rerun} ]; then if_rerun=false; fi
+
+## Add parameters to log file
+echo ""
+echo "------------------------------------------"
+echo "Directory: $base_directory"
+echo "Subject: $subject"
+echo "Session: $session"
+echo "Mask used: $mask_name"
+echo "Use GPU: $use_gpu"
+echo "Rerun: $if_rerun"
+echo "-------------------------------------------"
+echo ""
 
 ## directory setup
+anat_dir=${base_directory}/${subject}/${session}/anat
 anat_seg_dir=${anat_dir}/segment
+SUBJECTS_DIR=${base_directory}/${subject}/${session}
 
 # directory example
 # anat_dir=${dir}/${subject}/${session_name}/anat # BIDS format
 # SUBJECTS_DIR=${dir}/${subject}/${session_name} #FREESURFER SETUP
 
-if [ $# -lt 3 ];
-then
-        echo -e "\033[47;35m Usage: $0 anat_dir SUBJECTS_DIR subject mask_name(fs-bet, loose, tight, edit) use_gpu if_refun\033[0m"
-        exit
-fi
-
-if [ -z ${mask_name} ]; then mask_name=fs-bet; fi
-if [ -z ${use_gpu} ]; then use_gpu=false; fi
-if [ -z ${if_rerun} ]; then if_rerun=false; fi
 
 echo ------------------------------------------
 echo !!!! RUNNING ANATOMICAL SEGMENTATION !!!!
@@ -63,7 +126,10 @@ if [[ ! -e ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz ]]; then
     cp ${SUBJECTS_DIR}/${subject}/mri/brainmask.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.fsinit.mgz
   fi
 
-  if [[ ${mask_name} == "fs-bet" ]]; then
+  if [[ ${mask_name} == "manual" ]]; then
+    brainmask=${SUBJECTS_DIR}/${subject}/mri/brainmask.mgz
+    ln -s brain_fs_mask.nii.gz mask.nii.gz
+  elif [[ ${mask_name} == "fs-bet" ]]; then
     brainmask=${SUBJECTS_DIR}/${subject}/mri/brainmask.mgz
     ln -s brain_fs_mask.nii.gz mask.nii.gz
   elif [[ ${mask_name} == "tight" ]]; then
@@ -108,7 +174,7 @@ fi
 
 ## freesurfer version
 if [ ! -f segment_wm_erode1.nii.gz ] || [ ! -f segment_csf_erode1.nii.gz ]; then
-echo "RUN >> Convert FS aseg to create csf/wm segment files"
+  echo "RUN >> Convert FS aseg to create csf/wm segment files"
   mri_convert -it mgz ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz -ot nii aseg.nii.gz
   mri_binarize --i ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz --o segment_wm.nii.gz --match 2 41 7 46 251 252 253 254 255 
   mri_binarize --i ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz --o segment_csf.nii.gz --match 4 5 43 44 31 63 

@@ -1,1 +1,8 @@
 .DS_Store
+preprocessing/Omni/omni_2022.6.23.sif
+preprocessing/Omni/synth_unwarp_pipe
+preprocessing/Omni/model-39-epoch
+Data/
+Logs/
+tests/
+*.sif

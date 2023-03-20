@@ -3,113 +3,113 @@
 ## docker image: https://hub.docker.com/r/tingsterx/ccs-bids
 ## export PATH for docker
 #. /neurodocker/startup.sh
-export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=6
+export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=10
 ##########################################################################################################################
 ################### Setup code and data directory 
-## ccs template directory
-ccs_dir=/home/salldritt/projects/Func_Pipeline/CCS-pipeline/preprocessing/templates
-## directory where scripts are located
-scripts_dir=/home/salldritt/projects/Func_Pipeline/CCS-pipeline/preprocessing
-## full/path/to/site
-analysisdirectory=/home/salldritt/projects/Func_Pipeline/CCS-pipeline/Data/site-ucdavis
-################### Setup data 
-# subject ID: e.g. sub-001
-subject=$1
-# session ID: e.g. ses-001
-session_name=$2
-# run ID: e.g. run-001
-run_name=$3
-# which brain mask to use
-brainmask_name=fs-bet # options for fs-bet, tight, loose, edit
-# if run anatomical pipeline
-run_anat=true
-# if run functional pipeline
-run_func=true
-##########################################################################################################################
-################### Anat parameters
-## anat_dir_name
-anat_dir_name=anat
+# Source the config file
+. config_file.config
+
+################### Take parameters
+
+while test $# -gt 0; do
+  case "$1" in
+    -h|--help)
+      echo "-----------------------------"
+      echo "Usage:"
+      exit 0
+      ;;
+    -d)
+      shift
+      if test $# -gt 0; then
+        export base_directory=$1
+      else
+        echo "Need to specify directory to subject folder (path/to/subjects)"
+      fi
+      shift
+      ;;
+    --subject*)
+      shift
+			if test $# -gt 0; then
+				export subject=`echo $1 | sed -e 's/^[^=]*=//g'`
+			else
+				echo "Need to specify subject number (sub-******)"
+			fi
+			shift
+			;;
+    --session*)
+      shift
+      if test $# -gt 0; then
+        export session=`echo $1 | sed -e 's/^[^=]*=//g'`
+      else
+        echo "Need to specify session number (ses-***)"
+      fi
+      shift
+      ;;
+    --run*)
+      shift
+      if test $# -gt 0; then
+        export run=`echo $1 | sed -e 's/^[^=]*=//g'`
+      else
+        echo "Need to specify session number (ses-***)"
+      fi
+      shift
+      ;;
+    --num-runs*)
+      shift
+      if test $# -gt 0; then
+        export num_runs=`echo $1 | sed -e 's/^[^=]*=//g'`
+      else
+        echo "Need to specify session number (ses-***)"
+      fi
+      shift
+      ;;
+    --func-name*)
+      shift
+      if test $# -gt 0; then
+        export func_name=`echo $1 | sed -e 's/^[^=]*=//g'`
+      else
+        echo "Need to specify name of functional image"
+      fi
+      shift
+      ;;
+    --mask*)
+      shift
+      if test $# -gt 0; then
+        export mask_path=`echo $1 | sed -e 's/^[^=]*=//g'`
+      else
+        echo "Need to specify name of functional image"
+      fi
+      shift
+      ;;
+    *)
+      echo "Invalid input"
+      exit 0
+  esac
+done
+  
+    
 ## name of anatomical scan (no extension)
 anat_name=${subject}_${session_name}_${run_name}_T1w
-## if do anat registration
-do_anat_reg=true 
-## if do anat segmentation
-do_anat_seg=true
-## if use freesurfer derived volumes
-fs_brain=true
-## if use svd to extract the mean ts
-svd=false
-## if denoise the T1 input
-do_denoise=true
-## if using gcut for skullstripping in FS
-use_gcut=true
-## how many anat scans
-num_scans=1
-## use gpu
-use_gpu=false
-## anatomical registration directory name
-anat_reg_dir_name=reg
-#################### Func parameters
 ## name of resting-state scan (no extension)
-func_name=func
-## func_minimal directory name
-func_min_dir_name=func_minimal
-## func reg directory name
-func_reg_dir_name=func_reg
-## func segmentation directory name
-func_seg_dir_name=func_seg
-## func nuisance dir name
-nuisance_dir_name=func_nuisance
-## func nuisance_reg and final
-func_proc_dir_name=func_preproc
-## func surface dir name (freesurfer version) - not used yet
-func_surfFS_dir_name=func_surf_fs
-## func surface dir name (workbench version) - not used yet
-func_surfWB_dir_name=func_surf_wb
-## number of volume dropping
-numDropping=5
-## func to anat reg method: fsbbr flirtbbr flirt
-reg_method=fsbbr
-## resolution of func data (3mm)
-res_func=3
-## if use bias corrected example_func
-if_use_bc_func=true
-## use svd (to average signal in csf and wm)
-svd=false
-## motion model (default 24, options: 6,12,24)
-motion_model=24
-## if use compcor (instead of csf+wm)
-compcor=false
-## highpass-lowpass filtering
-hp=0.01
-lp=0.1
-## smooth kernel FWHM
-FWHM=6
-## write out resolution of preprocessed data (in anat space)
-res_anat=1
-## write out resolution of preprocessed data in standard (mni152) space
-res_std=1
-## cleanup the existing preprocessed data
-if_rerun=false
-##########################################################################################################################
-## standard brain
-standard_head=${FSLDIR}/data/standard/MacaqueYerkes19_T1w_0.5mm.nii.gz
-standard_brain=${FSLDIR}/data/standard/MacaqueYerkes19_T1w_0.5mm_brain.nii.gz
+ccs_dir=`pwd`
+standard_head=${ccs_dir}/templates/MacaqueYerkes19_T1w_0.5mm.nii.gz
+standard_brain=${ccs_dir}/templates/MacaqueYerkes19_T1w_0.5mm_brain.nii.gz
 standard_template=${ccs_dir}/templates/MacaqueYerkes19_T1w_1.0mm_brain.nii.gz
 fsaverage=fsaverage5
 ##########################################################################################################################
 
 ## BIDS format directory setup
-anat_dir=${analysisdirectory}/${subject}/${session_name}/${anat_dir_name}
-SUBJECTS_DIR=${analysisdirectory}/${subject}/${session_name}
-func_dir=${analysisdirectory}/${subject}/${session_name}/${run_name}
+anat_dir=${base_directory}/${subject}/${session_name}/${anat_dir_name}
+SUBJECTS_DIR=${base_directory}/${subject}/${session_name}
+func_dir=${base_directory}/${subject}/${session_name}/func
 TR_file=${func_dir}/TR.txt
 tpattern_file=${func_dir}/SliceTiming.txt
+###################
 
 ## Set up logging directory in working directory
-if [ ! -d "./Logs/" ]
+if [ ! -d "./Logs/${subject}" ]
 then
-  mkdir ./Logs
+  mkdir -p ./Logs/${subject}
 fi
 
 echo "-----------------------------------------------------"
@@ -122,10 +122,10 @@ echo "-----------------------------------------------------"
 if [ ${run_anat} == true ]; then
 
   ## 1. skullstriping 
-  ${scripts_dir}/ccs_bids_01_anatpreproc.sh ${anat_dir} ${SUBJECTS_DIR} ${subject} ${anat_name} ${do_denoise} ${num_scans} ${use_gcut} ${scripts_dir}
-  
+  ${scripts_dir}/ccs_bids_01_anatpreproc.sh -d ${base_directory} --subject ${subject} --session ${session} --num-scans ${num_runs} --gcut --denoise --mask ${mask_path}
+
   ## 2. freesurfer pipeline
-  ${scripts_dir}/ccs_bids_01_anatsurfrecon.sh ${anat_dir} ${SUBJECTS_DIR} ${subject} ${brainmask_name} ${mask_name} ${use_gpu}
+  ${scripts_dir}/ccs_bids_01_anatsurfrecon.sh -d ${base_directory} --subject ${subject} --session ${session} --mask manual 
   
   ## 3. registration
   ${scripts_dir}/ccs_bids_02_anatregister.sh ${ccs_dir} ${anat_dir} ${SUBJECTS_DIR} ${subject} ${anat_reg_dir_name}
