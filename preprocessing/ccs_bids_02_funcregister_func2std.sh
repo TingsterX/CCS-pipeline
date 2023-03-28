@@ -54,7 +54,7 @@ while test $# -gt 0; do
 			fi
 			shift
 			;;
-    --func-name*)
+    --func-name)
       shift
       if test $# -gt 0; then
         export rest=`echo $1 | sed -e 's/^[^=]*=//g'`
@@ -80,7 +80,22 @@ anat_reg_dir=${anat_dir}/reg
 func_min_dir=${func_dir}/func_minimal
 func_reg_dir=${func_dir}/func_reg
 highres=${anat_reg_dir}/highres.nii.gz
-example_func=${func_reg_dir}/example_func_brain.nii.gz
+
+if [ -f ${func_min_dir}/example_func_brain_unwarped.nii.gz ]; then
+  example_func=${func_min_dir}/example_func_unwarped_brain.nii.gz
+else
+  example_func=${func_min_dir}/example_func_brain.nii.gz
+fi
+
+if [ -z ${res} ]; then
+  res=3
+fi 
+
+if [ -z ${if_rerun} ]; then
+  if_rerun=true
+fi
+
+
 ## template
 standard_head=${ccs_dir}/templates/MacaqueYerkes19_T1w_0.5mm.nii.gz
 standard_brain=${ccs_dir}/templates/MacaqueYerkes19_T1w_0.5mm_brain.nii.gz
@@ -91,14 +106,6 @@ standard_func=${ccs_dir}/templates/MacaqueYerkes19_T1w_${res}mm.nii.gz
 echo "---------------------------------------"
 echo "!!!! FUNC To STANDARD REGISTRATION !!!!"
 echo "---------------------------------------"
-
-if [ -z ${res} ]; then
-  res=3
-fi 
-
-if [ -z ${if_rerun} ]; then
-  if_rerun=true
-fi
 
 ##------------------------------------------------
 cwd=$( pwd )

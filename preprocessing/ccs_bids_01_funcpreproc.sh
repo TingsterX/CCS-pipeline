@@ -148,8 +148,9 @@ fi
 
 ## 1. Despiking (particular helpful for motion)
 if [[ ! -f ${rest}_dspk.nii.gz ]]; then
-  echo "Despiking timeseries for this func dataset"
-  3dDespike -prefix ${rest}_dspk.nii.gz ${rest}_dr.nii.gz
+  #echo "Despiking timeseries for this func dataset"
+  #3dDespike -prefix ${rest}_dspk.nii.gz ${rest}_dr.nii.gz
+  cp ${rest}_dr.nii.gz ${rest}_dspk.nii.gz
 else
   echo "Despiking timeseries for this func dataset (done, skip)"
 fi

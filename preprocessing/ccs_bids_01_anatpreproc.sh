@@ -142,7 +142,7 @@ else
 fi
 echo "Auto reconstruction stage in Freesurfer (Take half hour ...)"
 if [ ${gcut} = 'true' ]; then
-	recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -gcut -no-isrunning -noappend
+	recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -gcut -no-isrunning -noappend 
 	if [ ${use_mask} = 'true' ]; then
 		mri_convert -it nii ${mask}.nii.gz -ot mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.mgz
 	fi
@@ -165,10 +165,10 @@ mri_convert -it mgz ${SUBJECTS_DIR}/${subject}/mri/T1.mgz -ot nii ${anat_dir}/ma
 ## 2. Reorient to fsl-friendly space
 echo "Reorienting ${subject} anatomical"
 rm -f brain_fs.nii.gz
-3dresample -orient RPI -inset brainmask.nii.gz -prefix brain_fs_tmp.nii.gz
+3dresample -orient RPI -inset brainmask.nii.gz -prefix brain_fs_tmp.nii.gz -overwrite
 rm -f head_fs.nii.gz
 3dresample -orient RPI -inset T1.nii.gz -prefix head_fs.nii.gz
-3dresample -inset brain_fs_tmp.nii.gz -prefix brain_fs.nii.gz -master T1.nii.gz
+3dresample -inset brain_fs_tmp.nii.gz -prefix brain_fs.nii.gz -master T1.nii.gz -overwrite
 fslmaths brain_fs.nii.gz -abs -bin brain_fs_mask.nii.gz
 #rm -rf brainmask.nii.gz ; 
 for (( n=1; n <= ${num_scans}; n++ ))
@@ -203,7 +203,7 @@ rm -f tmp.nii.gz
 mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/${subject}/mri/brain_loose.mgz
 mri_mask ${SUBJECTS_DIR}/${subject}/mri/T1.mgz ${SUBJECTS_DIR}/${subject}/mri/brain_loose.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.loose.mgz
 ## 4. Quality check
-#rm -f tmp* T1.nii.gz
+# rm -f tmp* T1.nii.gz
 overlay 1 1 head_fs.nii.gz -a brain_fs_mask.nii.gz 1 1 rendered_mask.nii.gz
 #FS BET
 slicer rendered_mask -S 10 1200 skull_fs_strip.png

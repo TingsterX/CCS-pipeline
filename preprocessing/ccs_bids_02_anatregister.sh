@@ -35,15 +35,6 @@ while test $# -gt 0; do
 			fi
 			shift
 			;;
-                --template*)
-                        shift
-			if test $# -gt 0; then
-				export template_dir=`echo $1 | sed -e 's/^[^=]*=//g'`
-			else
-				echo "Need to specify template"
-			fi
-			shift
-			;;
                 --session*)
                         shift
 			if test $# -gt 0; then
@@ -64,6 +55,8 @@ exec > >(tee "Logs/${subject}/02_anatregister_log.txt") 2>&1
 set -x 
 
 anat_reg_dir_name=reg
+ccs_dir=`pwd`
+template_dir=${ccs_dir}/templates
 anat_dir=${base_directory}/${subject}/${session}/anat
 SUBJECTS_DIR=${base_directory}/${subject}/${session}
 

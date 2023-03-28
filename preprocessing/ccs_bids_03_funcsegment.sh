@@ -6,36 +6,69 @@
 ## Ting Xu, 202204, BIDS format input
 ##########################################################################################################################
 
+while test $# -gt 0; do
+    case "$1" in   
+      -d)
+        shift
+        if test $# -gt 0; then
+          export base_directory=$1
+        else
+          echo "No base directory specified (path/to/subject_folder)"
+          exit 1
+        fi
+        shift
+        ;;
+      --subject*)
+        shift
+        if test $# -gt -0; then
+          export subject=$1
+        else
+          echo "No subject ID specified (sub-******)"
+        fi
+        shift
+        ;;
+      --session*)
+		  	shift
+			  if test $# -gt 0; then
+				  export session=`echo $1 | sed -e 's/^[^=]*=//g'`
+			  else
+				  echo "Need to specify session number"
+			  fi
+			  shift
+			  ;;
+      --run*)
+        shift
+			  if test $# -gt 0; then
+				  export run=`echo $1 | sed -e 's/^[^=]*=//g'`
+			  else
+				  echo "Need to specify run number"
+			  fi
+			  shift
+			  ;;
+      --func-name*)
+        shift
+			  if test $# -gt 0; then
+				  export rest=`echo $1 | sed -e 's/^[^=]*=//g'`
+			  else
+				  echo "Need to specify session number"
+			  fi
+			  shift
+			  ;;
+      *)
+        echo "Invalid input"
+        exit 0
+    esac
+done
 
-## anat_dir
-anat_dir=$1
-## SUBJECTS_DIR
-SUBJECTS_DIR=$2
-## subject
-subject=$3
-## filename of resting-state scan (no extension)
-rest=$4
-## func_dir
-func_dir=$5
-## name of func reg directory
-func_reg_dir_name=$6
-## name of func seg directory
-func_seg_dir_name=$7
-## if rerun
-if_redo=$8
-
-exec > >(tee "Logs/${subject}_03_funcsegment_log.txt") 2>&1
+exec > >(tee "Logs/${subject}/03_funcsegment_log.txt") 2>&1
 set -x 
 
 ## directory setup
-func_reg_dir=${func_dir}/${func_reg_dir_name}
-func_seg_dir=${func_dir}/${func_seg_dir_name}
-
-if [ $# -lt 5 ];
-then
-        echo -e "\033[47;35m Usage: $0 anat_dir SUBJECTS_DIR subject func_name func_dir func_reg_dir_name func_seg_dir_name if_redo \033[0m"
-        exit
-fi
+anat_dir=${base_directory}/${subject}/${session}/anat
+func_dir=${base_directory}/${subject}/${session}/func
+func_reg_dir=${func_dir}/func_reg
+func_seg_dir=${func_dir}/func_seg
+SUBJECTS_DIR=${base_directory}/${subject}/${session}
 
 echo -----------------------------------------
 echo !!!! RUNNING FUNCTIONAL SEGMENTATION !!!!

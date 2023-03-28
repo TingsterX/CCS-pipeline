@@ -63,12 +63,29 @@ while test $# -gt 0; do
       fi
       shift
       ;;
-    --func-name*)
+    --func-name)
       shift
       if test $# -gt 0; then
         export func_name=`echo $1 | sed -e 's/^[^=]*=//g'`
       else
         echo "Need to specify name of functional image"
+      fi
+      shift
+      ;;
+    ## Specify the second func scan (if available for topup)
+    --func-name-2*)
+      shift
+      if test $# -gt 0; then
+        export func_name_2=`echo $1 | sed -e 's/^[^=]*=//g'`
+      else
+        echo "Need to specify name of functional image"
+      fi
+      shift
+      ;;
+    --drop-vols*)
+      shift
+      if test $# -gt 0; then
+        export drop_vols=`echo $1 | sed -e 's/^[^=]*=//g'`
       fi
       shift
       ;;
@@ -81,13 +98,31 @@ while test $# -gt 0; do
       fi
       shift
       ;;
+    --reg-method*)
+      shift
+      if test $# -gt 0; then
+        export reg_method=`echo $1 | sed -e 's/^[^=]*=//g'`
+      else
+        echo "Need to specify the reg method (fsbbr, fslbbr, flirt)"
+      fi
+      shift
+      ;;
+    --distortion-correction*)
+      shift
+      if test $# -gt 0; then
+        export diss_type=`echo $1 | sed -e 's/^[^=]*=//g'`
+      else
+        echo "Need to specify the reg method (fsbbr, fslbbr, flirt)"
+      fi
+      shift
+      ;;
     *)
       echo "Invalid input"
       exit 0
   esac
 done
   
-    
+
 ## name of anatomical scan (no extension)
 anat_name=${subject}_${session_name}_${run_name}_T1w
 ## name of resting-state scan (no extension)
@@ -112,6 +147,9 @@ then
   mkdir -p ./Logs/${subject}
 fi
 
+exec > >(tee "Logs/${subject}/ccs_preproc_bids_docker_log.txt") 2>&1
+set -x 
+
 echo "-----------------------------------------------------"
 echo "Preprocessing of data: ${subject} ${session_name} ${run_name}..."
 echo "-----------------------------------------------------"
@@ -128,7 +166,7 @@ if [ ${run_anat} == true ]; then
   ${scripts_dir}/ccs_bids_01_anatsurfrecon.sh -d ${base_directory} --subject ${subject} --session ${session} --mask manual 
   
   ## 3. registration
-  ${scripts_dir}/ccs_bids_02_anatregister.sh ${ccs_dir} ${anat_dir} ${SUBJECTS_DIR} ${subject} ${anat_reg_dir_name}
+  ${scripts_dir}/ccs_bids_02_anatregister.sh -d ${base_directory} --subject ${subject} --session ${session}
 
 fi
 
@@ -139,21 +177,24 @@ fi
 if [ ${run_func} == true ]; then
 
   ## 1. Preprocessing functional images
-  ${scripts_dir}/ccs_bids_01_funcpreproc.sh ${func_name} ${anat_dir} ${func_dir} ${numDropping} ${TR_file} ${tpattern_file} ${func_min_dir_name} ${if_rerun} ${clean_up}
+  ${scripts_dir}/ccs_bids_01_funcpreproc.sh -d ${base_directory} -r ${func_name} --n-vols ${drop_vols} --subject ${subject} --session ${session} --run ${run} --mask
+
+  ## 1.5 Distortion correction (WORK ON TURNING THIS INTO A STRING TO CALL INSTEAD -- TOO MANY VARIABLES)
+  ${scripts_dir}/ccs_bids_1.5_funcdistortioncorr.sh -d ${base_directory} --subject ${subject} --session ${session} --distortion-type ${diss_type} --func-name ${func_name} --func-name-2 ${func_name_2} --dwell-time ${dwell_time} --polarity-direction ${polarity_direction} --n-vols ${drop_vols}
   
   ## 2. func to anat registration
-  ${scripts_dir}/ccs_bids_02_funcregister_func2anat.sh ${anat_dir} ${anat_reg_dir_name} ${SUBJECTS_DIR} ${subject} ${func_name} ${func_dir} ${func_min_dir_name} ${reg_method} ${func_reg_dir_name} ${if_use_bc_func} ${res_func} ${if_rerun}
+  ${scripts_dir}/ccs_bids_02_funcregister_func2anat.sh -d ${base_directory} --reg-method ${reg_method} --subject ${subject} --session ${session} --res ${func_res} --func-name ${func_name}
   
   ## 2. func to std registration
-  ${scripts_dir}/ccs_bids_02_funcregister_func2std.sh ${ccs_dir} ${anat_dir} ${anat_reg_dir_name} ${func_name} ${func_dir} ${func_min_dir_name} ${func_reg_dir_name} ${res_func} ${if_rerun}
+  ${scripts_dir}/ccs_bids_02_funcregister_func2std.sh -d ${base_directory} --subject ${subject} --session ${session} --run ${run} --res ${func_res} --func-name ${func_name}
   
   ## 3. func segmentation
-  ${scripts_dir}/ccs_bids_03_funcsegment.sh ${anat_dir} ${SUBJECTS_DIR} ${subject} ${func_name} ${func_dir} ${func_reg_dir_name} ${func_seg_dir_name} ${if_rerun}
+  ${scripts_dir}/ccs_bids_03_funcsegment.sh -d ${base_directory} --subject ${subject} --session ${session} --run ${run} --func-name ${func_name}
   
   ## 4. func generate nuisance 
-  ${scripts_dir}/ccs_bids_04_funcnuisance.sh ${func_name} ${func_dir} ${func_min_dir_name} ${func_reg_dir_name} ${func_seg_dir_name} ${nuisance_dir_name} ${svd} ${if_rerun}
+  ${scripts_dir}/ccs_bids_04_funcnuisance.sh -d ${base_directory} --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --svd
   
   ## 5. func nuisance regression, filter, smoothing preproc
-  ${scripts_dir}/ccs_bids_05_funcpreproc_vol.sh ${anat_dir} ${anat_reg_dir_name} ${func_name} ${func_dir} ${func_min_dir_name} ${func_reg_dir_name} ${nuisance_dir_name} ${func_proc_dir_name} ${motion_model} ${compcor} ${hp} ${lp} ${FWHM} ${res_anat} ${res_std} ${ccs_dir} ${if_rerun}
+  ${scripts_dir}/ccs_bids_05_funcpreproc_vol.sh -d ${base_directory} --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --motion-model ${motion_model} --FWHM ${FWHM} --compcor --hp ${hp} --lp ${lp} --res 1.0
 
 fi
