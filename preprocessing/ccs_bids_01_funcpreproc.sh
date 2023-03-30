@@ -206,6 +206,13 @@ else
 fi
 
 ##7 Initial func_pp_mask.init
+
+## CHANGE:
+## - Linear registration works well for the brain, not the head
+## - Head-to-head not the best solution for co-registration step to get anatomical into functional space (for masking)
+## - Start with bad mask first, then iterate, update the mask over and over
+## - Don't need to use the $input_mask option, just use the old code
+
 if [[ $input_mask = "true" ]]; then
   if [[ -f example_func_bc.nii.gz ]]; then
     flirt -in ${anat_dir}/reg/highres_head.nii.gz -ref example_func_bc.nii.gz -dof 6 -out highres_head2example_func.nii.gz -omat highres_head2example_func.mat
@@ -240,7 +247,7 @@ else
   fslmaths example_func_bc.nii.gz -mas ${rest}_pp_mask.init.nii.gz example_func_brain_bc.init.nii.gz
 fi
 
-## clean up the 
+## clean up the output
 if [[ ${cleanup} == "true" ]]; then
   echo "clean up: func_dr (dropping), func_dspk (despike), func_ro (reoriented)"
   rm -f ${rest}_dr.nii.gz ${rest}_dspk.nii.gz ${rest}_ro.nii.gz ${rest}_ts.nii.gz

@@ -84,7 +84,7 @@ Omni_dir=${working_dir}/preprocessing/Omni
 
 ## Debiasing and generating EPI reference
 echo "Debiasing EPI data..."
-fslroi ${func_dir}/func_minimal/${rest}_dr.nii.gz ${func_dir}/func_minimal/epi_reference_raw.nii.gz 7 1
+fslroi ${func_dir}/func_minimal/${rest}_mc.nii.gz ${func_dir}/func_minimal/epi_reference_raw.nii.gz 7 1
 N4BiasFieldCorrection -i ${func_dir}/func_minimal/epi_reference_raw.nii.gz -d 3 -o ${func_dir}/func_minimal/epi_reference_temp.nii.gz
 
 ## Debiasing anatomical images
@@ -136,8 +136,11 @@ flirt -in ${func_dir}/Synth-Unwarp/input_data/${subject}_${session}_${run}_T1w_b
 
 # ${func_dir}/Synth-Unwarp/final_epi_to_anat.aff12.1D
 
-3dNwarpApply -nwarp ${func_dir}/Synth-Unwarp/final_epi_to_synth_warp.nii.gz -master ${func_dir}/Synth-Unwarp/input_data/${subject}_${session}_${run}_T1w_brain_resampled.nii.gz -source ${func_dir}/func_minimal/${rest}_dspk_dblq.nii.gz -prefix ${rest}_unwarped.nii.gz -overwrite
+3dNwarpApply -nwarp ${func_dir}/Synth-Unwarp/final_epi_to_synth_warp.nii.gz -master ${func_dir}/Synth-Unwarp/input_data/${subject}_${session}_${run}_T1w_brain_resampled.nii.gz -source ${func_dir}/func_minimal/${rest}_mc.nii.gz -prefix ${rest}_unwarped.nii.gz -overwrite
 
-mv ${rest}_unwarped.nii.gz ${func_dir}/.
+cp ${rest}_unwarped.nii.gz ${func_dir}/func_minimal/.
+
+fslroi ${func_dir}/func_minimal/${rest}_unwarped.nii.gz ${func_dir}/func_minimal/example_func_unwarped.nii.gz 7 1
+fslmaths ${func_dir}/func_minimal/example_func_unwarped.nii.gz -mas ${func_dir}/func_minimal/example_func_mask.nii.gz ${func_dir}/func_minimal/example_func_unwarped_brain.nii.gz
 
 

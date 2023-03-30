@@ -135,6 +135,10 @@ while test $# -gt 0; do
     esac
 done
 
+## Change flag from one or the other to --topup, --fugue, --omni (so we can run it at the same time in the same run)
+## If pass none of them, skip this step
+## Section of the code to check if necessary input, if not, exit
+
 ## Setting up common directories
 fieldmap_dir=${base_directory}/${subject}/${session}/fmap
 anat_dir=${base_directory}/${subject}/${session}/anat
