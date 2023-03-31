@@ -9,15 +9,97 @@ export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=10
 # Source the config file
 . config_file.config
 
-################### Take parameters
+## Set up functions for usage and checking to make sure required variables are set
+usage () {
+  echo ""
+  echo "Usage (BIDS format):"
+  echo ""
+  echo "Mandatory arguments:"
+  echo "-d <path/to/subject-folder> : Specify input folder"
+  echo "--subject <sub-??????> : Subject folder ID"
+  echo "--session <ses-???> : Specify session number"
+  echo "--run <run-?> : Run number"
+  echo ""
+  echo "Optional arguments:"
+  echo "--topup : Run TOPUP distortion correction"
+  echo "--omni : Run OMNI distortion correction"
+  echo "--fugue : Run FUGUE distortion correction"
+  echo "--func-name (if running functional preprocessing) : Name of functional scan"
+  echo "--func-name-2 : Name of second functional scan (used for distortion correction if using TOPUP)"
+  echo "--dwell-time : Dwell time in ms"
+  echo "--drop-vols : Number of volumes to drop from beginning of functional scan"
+  echo "--polarity-direction <x/y/z> : Polarity direction of the functional images (if using topup)"
+  echo "--mask <path/to/mask_file.nii.gz> : Input mask to use in pipeline"
+  echo ""
+  echo "All variables can also be set in the *.config file, sourced at the beginning of the pipeline"
+}
+
+check_variables () {
+  if [ -z $subject ]; then
+    usage
+    echo ""
+    echo "ERROR: Need to specify subject"
+    exit 0
+  elif [ -z $session ]; then
+    usage
+    echo ""
+    echo "ERROR: Need to specify session"
+    exit 0
+  elif [ -z $base_directory ]; then
+    usage
+    echo ""
+    echo "ERROR: Need to specify base-directory"
+    exit 0
+  elif [ -z $run ]; then
+    usage
+    echo ""
+    echo "ERROR: Need to specify run"
+    exit 0
+  elif [ $run_func == "true" ]; then
+    if [ -z $func_name ]; then
+      usage
+      echo ""
+      echo "ERROR: Need to specify functional scan name"
+      exit 0
+    fi
+    if [[ $dist_corr == *"--topup"* ]]; then
+      if [ -z $polarity_direction ]; then
+        usage
+        echo ""
+        echo "ERROR: If using topup, need to specify polarity direction"
+        exit 0
+      elif [ -z $dwell_time ]; then
+        usage
+        echo ""
+        echo "ERROR: If using topup, need to specify dwell time in ms"
+        exit 0
+      elif [ -z $func_name_2 ]; then
+        usage
+        echo ""
+        echo "ERROR: If using topup, need to specify second functional scan name"
+        exit 0
+      fi
+    fi
+    if [[ $dist_corr == *"--fugue"* ]]; then
+      if [ -z $dwell_time ]; then
+        usage
+        echo ""
+        echo "ERROR: If using fugue, need to specify dwell time in ms"
+        exit 0
+      elif [ -z $fieldmap_name ]; then
+        usage
+        echo ""
+        echo "ERROR: If using fugue, need to specify name of fieldmap image"
+        exit 0
+      fi
+    fi
+  fi
+}
+
+################### Take parameters #################
 
 while test $# -gt 0; do
   case "$1" in
-    -h|--help)
-      echo "-----------------------------"
-      echo "Usage:"
-      exit 0
-      ;;
     -d)
       shift
       if test $# -gt 0; then
@@ -107,22 +189,32 @@ while test $# -gt 0; do
       fi
       shift
       ;;
-    --distortion-correction*)
+    --topup)
       shift
-      if test $# -gt 0; then
-        export diss_type=`echo $1 | sed -e 's/^[^=]*=//g'`
-      else
-        echo "Need to specify the reg method (fsbbr, fslbbr, flirt)"
-      fi
+      add_dist_corr="--topup "
+      export dist_corr="$dist_corr$add_dist_corr"
+      ;;
+    --fugue)
       shift
+      add_dist_corr="--fugue "
+      export dist_corr="$dist_corr$add_dist_corr"
+      ;;
+    --omni)
+      shift
+      add_dist_corr="--omni "
+      export dist_corr="$dist_corr$add_dist_corr"
       ;;
     *)
-      echo "Invalid input"
+      usage
+      echo ""
+      echo "Invalid input : $1"
       exit 0
   esac
 done
-  
 
+## Check to make sure the variables are set before starting the pipeline
+check_variables
+  
 ## name of anatomical scan (no extension)
 anat_name=${subject}_${session_name}_${run_name}_T1w
 ## name of resting-state scan (no extension)
@@ -180,7 +272,7 @@ if [ ${run_func} == true ]; then
   ${scripts_dir}/ccs_bids_01_funcpreproc.sh -d ${base_directory} -r ${func_name} --n-vols ${drop_vols} --subject ${subject} --session ${session} --run ${run} --mask
 
   ## 1.5 Distortion correction (WORK ON TURNING THIS INTO A STRING TO CALL INSTEAD -- TOO MANY VARIABLES)
-  ${scripts_dir}/ccs_bids_1.5_funcdistortioncorr.sh -d ${base_directory} --subject ${subject} --session ${session} --distortion-type ${diss_type} --func-name ${func_name} --func-name-2 ${func_name_2} --dwell-time ${dwell_time} --polarity-direction ${polarity_direction} --n-vols ${drop_vols}
+  ${scripts_dir}/ccs_bids_1.5_funcdistortioncorr.sh -d ${base_directory} --subject ${subject} --session ${session} ${dist_corr} --func-name ${func_name} --func-name-2 ${func_name_2} --dwell-time ${dwell_time} --polarity-direction ${polarity_direction} --n-vols ${drop_vols}
   
   ## 2. func to anat registration
   ${scripts_dir}/ccs_bids_02_funcregister_func2anat.sh -d ${base_directory} --reg-method ${reg_method} --subject ${subject} --session ${session} --res ${func_res} --func-name ${func_name}

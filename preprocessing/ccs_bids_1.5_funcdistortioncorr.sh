@@ -9,9 +9,6 @@ delta_TE=2.46
 
 ## Put in flag architecture
 
-exec > >(tee "Logs/${subject}/1.5_funcdistortioncorr_log.txt") 2>&1
-set -x 
-
 while test $# -gt 0; do 
     case "$1" in
         -d)
@@ -24,9 +21,21 @@ while test $# -gt 0; do
             fi
             shift
             ;;
-        --distortion-type*)
+        --topup)
             shift
-            export dist_corr_type=`echo $1 | sed -e 's/^[^=]*=//g'`
+            export topup=true
+            ;;
+        --fugue)
+            shift
+            export fugue=true
+            ;;
+        --omni)
+            shift
+            export omni=true
+            ;;
+        --program)
+            shift
+            export program=$1
             shift
             ;;
         ## do we need to run fsl_prepare_fieldmap
@@ -135,6 +144,17 @@ while test $# -gt 0; do
     esac
 done
 
+exec > >(tee "Logs/${subject}/1.5_funcdistortioncorr_log.txt") 2>&1
+set -x 
+
+## Set variables to "false" that have not been passed as flags
+if [ -z $prepare_fieldmap ]; then prepare_fieldmap=false; fi
+if [ -z $topup ]; then topup=false; fi
+if [ -z $omni ]; then omni=false; fi
+if [ -z $fugue ]; then fugue=false; fi
+if [ -z $program ]; then program=afni; fi
+
+
 ## Change flag from one or the other to --topup, --fugue, --omni (so we can run it at the same time in the same run)
 ## If pass none of them, skip this step
 ## Section of the code to check if necessary input, if not, exit
@@ -143,11 +163,14 @@ done
 fieldmap_dir=${base_directory}/${subject}/${session}/fmap
 anat_dir=${base_directory}/${subject}/${session}/anat
 func_dir=${base_directory}/${subject}/${session}/func
+fugue_dir=${base_directory}/${subject}/${session}/func_fugue
+topup_dir=${base_directory}/${subject}/${session}/func_topup
+omni_dir=${base_directory}/${subject}/${session}/func_omni
 
 ## IF RUNNING PREPARE FIELDMAP 
 
-if [ $prepare_fieldmap = "true" ]; then
-    if [ "$mag_bet" = "true" ]; then
+if [[ $prepare_fieldmap = "true" ]]; then
+    if [[ "$mag_bet" = "true" ]]; then
         3dresample -prefix ${fieldmap_dir}/tmp_mask.nii.gz -input ${anat_dir}/mask/brain_fs_mask.nii.gz -master ${fieldmap_dir}/${mag_image}.nii.gz
         fslmaths ${fieldmap_dir}/${mag_image}.nii.gz -mas ${fieldmap_dir}/tmp_mask.nii.gz ${fieldmap_dir}/${mag_image}_brain.nii.gz
         rm ${fieldmap_dir}/tmp_mask.nii.gz
@@ -159,67 +182,73 @@ if [ $prepare_fieldmap = "true" ]; then
     else
         cp ${fieldmap_dir}/${phase_image}.nii.gz ${fieldmap_dir}/${phase_image}_rads.nii.gz
     fi
-    fsl_prepare_fieldmap SIEMENS ${fieldmap_dir}/${phase_image}_rads.nii.gz ${fieldmap_dir}/${mag_image}_brain.nii.gz ${func_dir}/fmap_diss_corr/${fieldmap_name}.nii.gz ${delta_TE} --nocheck
+    fsl_prepare_fieldmap SIEMENS ${fieldmap_dir}/${phase_image}_rads.nii.gz ${fieldmap_dir}/${mag_image}_brain.nii.gz ${fugue_dir}/${fieldmap_name}.nii.gz ${delta_TE} --nocheck
 fi
 
 ## UNWARPING BASED ON DISTORTION CORRECTION
-if [[ $dist_corr_type == "fugue" ]]; then
+if [[ $fugue == "true" ]]; then
+    # Make directory if it doesn't exist
+    if [ ! -d $fugue_dir ]; then
+        mkdir -p $fugue_dir
+    fi
     ## need to run unwarping on the whole functional set 
-    fugue -i ${func_dir}/func_minimal/ --dwell=${dwell_time} --loadfmap=${func_dir}/fmap_diss_corr/${fieldmap_name} -u ${func_dir}/fmap_diss_corr/example_func_bc_unwarped.nii.gz
+    fugue -i ${func_dir}/func_minimal/ --dwell=${dwell_time} --loadfmap=${fugue_dir}/${fieldmap_name} -u ${fugue_dir}/example_func_bc_unwarped.nii.gz
 
     ## Prepare visual check images
-    3dedge3 -input ${func_dir}/func_minimal/highres2examplefunc.nii.gz -prefix ${func_dir}/fmap_diss_corr/anat2func_edge.nii.gz
-    overlay 1 1 ${func_dir}/fmap_diss_corr/example_func_bc_unwarped.nii.gz -a ${func_dir}/fmap_diss_corr/anat2func_edge.nii.gz 1 1 ${func_dir}/fmap_diss_corr/overlay.nii.gz
-    slicer ${func_dir}/fmap_diss_corr/overlay -S 5 3000 ${func_dir}/fmap_diss_corr/anat2func_edge_vcheck.png
-    slicer ${func_dir}/fmap_diss_corr/overlay -a ${func_dir}/fmap_diss_corr/anat2func_edge_vcheck_2.png
-    rm ${func_dir}/fmap_diss_corr/overlay.nii.gz
+    3dedge3 -input ${func_dir}/func_minimal/highres2examplefunc.nii.gz -prefix ${fugue_dir}/anat2func_edge.nii.gz
+    overlay 1 1 ${fugue_dir}/example_func_bc_unwarped.nii.gz -a ${fugue_dir}/anat2func_edge.nii.gz 1 1 ${fugue_dir}/overlay.nii.gz
+    slicer ${fugue_dir}/overlay -S 5 3000 ${fugue_dir}/anat2func_edge_vcheck.png
+    slicer ${fugue_dir}/overlay -a ${fugue_dir}/anat2func_edge_vcheck_2.png
+    rm ${fugue_dir}/overlay.nii.gz
 
-elif [[ $dist_corr_type == "omni" ]]; then
+elif [[ $omni == "true" ]]; then
 
-    ./preprocessing/Omni/ccs_bids_1.5_synth_unwarp.sh -d ${base_directory} --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --program afni
+    ./preprocessing/Omni/ccs_bids_1.5_synth_unwarp.sh -d ${base_directory} --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --program ${program}
 
-elif [[ $dist_corr_type == "topup" ]]; then
+elif [[ $topup == "true" ]]; then
 
-    if [ ! -d ${func_dir}/topup_diss_corr ]; then
-        mkdir ${func_dir}/topup_diss_corr
+    if [ ! -d ${topup_dir} ]; then
+        mkdir -p ${topup_dir}
     fi
 
     ## Make the datain_params.txt file
-    rm ${func_dir}/topup_diss_corr/datain_param.txt
-    touch ${func_dir}/topup_diss_corr/datain_param.txt
-    if [ $polarity_direction == 'x' ]; then
-        echo "1 0 0 ${dwell_time}" >> ${func_dir}/topup_diss_corr/datain_param.txt
-        echo "-1 0 0 ${dwell_time}" >> ${func_dir}/topup_diss_corr/datain_param.txt
-    elif [ $polarity_direction == 'y' ]; then
-        echo "0 1 0 ${dwell_time}" >> ${func_dir}/topup_diss_corr/datain_param.txt
-        echo "0 -1 0 ${dwell_time}" >> ${func_dir}/topup_diss_corr/datain_param.txt
-    elif [ $polarity_direction == 'z' ]; then
-        echo "0 0 1 ${dwell_time}" >> ${func_dir}/topup_diss_corr/datain_param.txt
-        echo "0 0 -1 ${dwell_time}" >> ${func_dir}/topup_diss_corr/datain_param.txt
+    if [ -f ${topup_dir}/datain_param.txt ]; then
+        rm ${topup_dir}/datain_param.txt
+    fi
+    touch ${topup_dir}/datain_param.txt
+    if [[ $polarity_direction == 'x' ]]; then
+        echo "1 0 0 ${dwell_time}" >> ${topup_dir}/datain_param.txt
+        echo "-1 0 0 ${dwell_time}" >> ${topup_dir}/datain_param.txt
+    elif [[ $polarity_direction == 'y' ]]; then
+        echo "0 1 0 ${dwell_time}" >> ${topup_dir}/datain_param.txt
+        echo "0 -1 0 ${dwell_time}" >> ${topup_dir}/datain_param.txt
+    elif [[ $polarity_direction == 'z' ]]; then
+        echo "0 0 1 ${dwell_time}" >> ${topup_dir}/datain_param.txt
+        echo "0 0 -1 ${dwell_time}" >> ${topup_dir}/datain_param.txt
     fi
 
     ## Take one volume of each of the scans to make b0 images
-    fslroi ${func_dir}/func_minimal/${func_name}_mc.nii.gz ${func_dir}/topup_diss_corr/b0_image_1.nii.gz 7 1
-    fslroi ${func_dir}/${func_name_2}.nii.gz ${func_dir}/topup_diss_corr/b0_image_2.nii.gz 7 1
+    fslroi ${func_dir}/func_minimal/${func_name}_mc.nii.gz ${topup_dir}/b0_image_1.nii.gz 7 1
+    fslroi ${func_dir}/${func_name_2}.nii.gz ${topup_dir}/b0_image_2.nii.gz 7 1
     ## Now merge them
-    fslmerge -t ${func_dir}/topup_diss_corr/b0_images.nii.gz ${func_dir}/topup_diss_corr/b0_image_1.nii.gz ${func_dir}/topup_diss_corr/b0_image_2.nii.gz
+    fslmerge -t ${topup_dir}/b0_images.nii.gz ${topup_dir}/b0_image_1.nii.gz ${topup_dir}/b0_image_2.nii.gz
 
     ## Now we can run topup
-    topup --imain=${func_dir}/topup_diss_corr/b0_images.nii.gz --datain=${func_dir}/topup_diss_corr/datain_param.txt --out=${func_dir}/topup_diss_corr/topup_unwarping
+    topup --imain=${topup_dir}/b0_images.nii.gz --datain=${topup_dir}/datain_param.txt --out=${topup_dir}/topup_unwarping
 
     ## make sure the dimensions of the first and second image are the same
     nvols=`fslnvols ${func_dir}/${func_name_2}.nii.gz`
     TRstart=${ndvols}
     let "TRend = ${nvols} - 1"
-    3dcalc -a ${func_dir}/${func_name_2}.nii.gz[${TRstart}..${TRend}] -expr 'a' -prefix ${func_dir}/topup_diss_corr/${func_name_2}_dr.nii.gz -datum float
+    3dcalc -a ${func_dir}/${func_name_2}.nii.gz[${TRstart}..${TRend}] -expr 'a' -prefix ${topup_dir}/${func_name_2}_dr.nii.gz -datum float
 
     ## Then we apply topup
-    applytopup --imain=${func_dir}/func_minimal/${func_name}_mc,${func_dir}/topup_diss_corr/${func_name_2}_dr --topup=${func_dir}/topup_diss_corr/topup_unwarping --datain=${func_dir}/topup_diss_corr/datain_param.txt --inindex=1,2 --out=${func_dir}/topup_diss_corr/${func_name}_unwarped.nii.gz
+    applytopup --imain=${func_dir}/func_minimal/${func_name}_mc,${topup_dir}/${func_name_2}_dr --topup=${topup_dir}/topup_unwarping --datain=${topup_dir}/datain_param.txt --inindex=1,2 --out=${topup_dir}/${func_name}_unwarped.nii.gz
 
-    fslroi ${func_dir}/topup_diss_corr/${func_name}_unwarped.nii.gz ${func_dir}/topup_diss_corr/example_func_unwarped.nii.gz 7 1
-    fslmaths ${func_dir}/topup_diss_corr/example_func_unwarped.nii.gz -mas ${func_dir}/func_minimal/example_func_mask.nii.gz ${func_dir}/func_minimal/example_func_unwarped_brain.nii.gz
+    fslroi ${topup_dir}/${func_name}_unwarped.nii.gz ${topup_dir}/example_func_unwarped.nii.gz 7 1
+    fslmaths ${topup_dir}/example_func_unwarped.nii.gz -mas ${func_dir}/func_minimal/example_func_mask.nii.gz ${func_dir}/func_minimal/example_func_unwarped_brain.nii.gz
 
-    cp ${func_dir}/topup_diss_corr/${func_name}_unwarped.nii.gz ${func_dir}/func_minimal/.
+    cp ${topup_dir}/${func_name}_unwarped.nii.gz ${func_dir}/func_minimal/.
     
 
 fi
