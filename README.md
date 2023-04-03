@@ -2,7 +2,7 @@
 
 Connectome Computation System (CCS) is designed for Discovery Science of the human brain from Lab For Functional Connectome and Development (LFCD). **Source version** of the CCS pipeline is on Github: https://github.com/zuoxinian/CCS. 
 
-This repo includes **custimized versions** for different data.
+This repo includes **customized versions** for different data.
 
 
 If you use or are inspired by CCS, please credit it both the github link and the two key references:
