@@ -6,91 +6,37 @@
 ## Ting Xu, 202204, BIDS format input
 ##########################################################################################################################
 
+## func filename (no extension)
+rest=$1
+## func directory
+func_dir=$2
+## func minimal directory
+func_min_dir_name=$3
+## func registration directory
+func_reg_dir_name=$4
+## func segment directory
+func_seg_dir_name=$5
+## func_preprocessed directory
+nuisance_dir_name=$6
+## use svd instead of mean
+svd=$7
+## if rerun
+if_rerun=$8
 
-
-while test $# -gt 0; do
-    case "$1" in   
-      -d)
-        shift
-        if test $# -gt 0; then
-          export base_directory=$1
-        else
-          echo "No base directory specified (path/to/subject_folder)"
-          exit 1
-        fi
-        shift
-        ;;
-      --subject*)
-        shift
-        if test $# -gt -0; then
-          export subject=$1
-        else
-          echo "No subject ID specified (sub-******)"
-        fi
-        shift
-        ;;
-      --session*)
-		  	shift
-			  if test $# -gt 0; then
-				  export session=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify session number"
-			  fi
-			  shift
-			  ;;
-      --run*)
-        shift
-			  if test $# -gt 0; then
-				  export run=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify run number"
-			  fi
-			  shift
-			  ;;
-      --func-name*)
-        shift
-			  if test $# -gt 0; then
-				  export rest=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify session number"
-			  fi
-			  shift
-			  ;;
-      --svd)
-        shift
-        export svd=true
-        ;;
-      --rerun)
-        shift
-        export rerun=true
-        ;;
-      --dc-method)
-        shift
-        export dc_method=$1
-        shift
-        ;;
-      *)
-        echo "Invalid input"
-        exit 0
-    esac
-done
-
-exec > >(tee "Logs/${subject}/04_funcnuisance_log.txt") 2>&1
-set -x 
-
-if [ -z ${dc_method} ]; then
-  export dc_method=nondc
-fi
 
 ## directory setup
-func_dir=${base_directory}/${subject}/${session}/func_${dc_method}
-func_min_dir=${base_directory}/${subject}/${session}/func_minimal
-func_reg_dir=${func_dir}/func_reg
-func_seg_dir=${func_dir}/func_seg
-nuisance_dir=${func_dir}/func_nuisance
+func_min_dir=${func_dir}/${func_min_dir_name}
+func_reg_dir=${func_dir}/${func_reg_dir_name}
+func_seg_dir=${func_dir}/${func_seg_dir_name}
+nuisance_dir=${func_dir}/${nuisance_dir_name}
 
 func_input=${func_reg_dir}/${rest}_gms.nii.gz
 
+if [ $# -lt 7 ];
+then
+        echo -e "\033[47;35m Usage: $0 func_dataset_name func_dir func_min_dir_namefunc_reg_dir_name func_seg_dir_name nuisance_dir_name svd(false, true) if_rerun \033[0m"
+        exit
+fi
 
 if [ -z ${svd} ]; then svd=false; fi
 if [ -z ${if_rerun} ]; then if_rerun=false; fi
