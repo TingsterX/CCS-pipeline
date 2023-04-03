@@ -64,6 +64,11 @@ while test $# -gt 0; do
         shift
         export rerun=true
         ;;
+      --dc-method)
+        shift
+        export dc_method=$1
+        shift
+        ;;
       *)
         echo "Invalid input"
         exit 0
@@ -73,10 +78,13 @@ done
 exec > >(tee "Logs/${subject}/04_funcnuisance_log.txt") 2>&1
 set -x 
 
+if [ -z ${dc_method} ]; then
+  export dc_method=nondc
+fi
 
 ## directory setup
-func_dir=${base_directory}/${subject}/${session}/func
-func_min_dir=${func_dir}/func_minimal
+func_dir=${base_directory}/${subject}/${session}/func_${dc_method}
+func_min_dir=${base_directory}/${subject}/${session}/func_minimal
 func_reg_dir=${func_dir}/func_reg
 func_seg_dir=${func_dir}/func_seg
 nuisance_dir=${func_dir}/func_nuisance

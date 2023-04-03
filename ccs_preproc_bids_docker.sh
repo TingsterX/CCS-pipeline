@@ -96,6 +96,9 @@ check_variables () {
   fi
 }
 
+## Read JSON file for dwell time + slice timing 
+
+
 ################### Take parameters #################
 
 while test $# -gt 0; do
@@ -204,6 +207,11 @@ while test $# -gt 0; do
       add_dist_corr="--omni "
       export dist_corr="$dist_corr$add_dist_corr"
       ;;
+    --no-dc)
+      shift
+      add_dist_corr="--no-dc "
+      export dist_corr="$dist_corr$add_dist_corr"
+      ;;
     *)
       usage
       echo ""
@@ -211,6 +219,8 @@ while test $# -gt 0; do
       exit 0
   esac
 done
+
+if [ -z $dist_corr ]; then $dist_corr="--no-dc"; fi
 
 ## Check to make sure the variables are set before starting the pipeline
 check_variables
@@ -231,11 +241,13 @@ SUBJECTS_DIR=${base_directory}/${subject}/${session_name}
 func_dir=${base_directory}/${subject}/${session_name}/func
 TR_file=${func_dir}/TR.txt
 tpattern_file=${func_dir}/SliceTiming.txt
-###################
+####################################################################################################################
 
 ## Set up logging directory in working directory
-if [ ! -d "./Logs/${subject}" ]
-then
+if [ ! -d "./Logs/${subject}" ]; then
+  mkdir -p ./Logs/${subject}
+elif [ -d "./Logs/${subject}" ]; then
+  rm -r ./Logs/${subject}
   mkdir -p ./Logs/${subject}
 fi
 
@@ -271,22 +283,71 @@ if [ ${run_func} == true ]; then
   ## 1. Preprocessing functional images
   ${scripts_dir}/ccs_bids_01_funcpreproc.sh -d ${base_directory} -r ${func_name} --n-vols ${drop_vols} --subject ${subject} --session ${session} --run ${run} --mask
 
-  ## 1.5 Distortion correction (WORK ON TURNING THIS INTO A STRING TO CALL INSTEAD -- TOO MANY VARIABLES)
+   ## 1.5 Distortion correction (WORK ON TURNING THIS INTO A STRING TO CALL INSTEAD -- TOO MANY VARIABLES)
   ${scripts_dir}/ccs_bids_1.5_funcdistortioncorr.sh -d ${base_directory} --subject ${subject} --session ${session} ${dist_corr} --func-name ${func_name} --func-name-2 ${func_name_2} --dwell-time ${dwell_time} --polarity-direction ${polarity_direction} --n-vols ${drop_vols}
-  
-  ## 2. func to anat registration
-  ${scripts_dir}/ccs_bids_02_funcregister_func2anat.sh -d ${base_directory} --reg-method ${reg_method} --subject ${subject} --session ${session} --res ${func_res} --func-name ${func_name}
-  
-  ## 2. func to std registration
-  ${scripts_dir}/ccs_bids_02_funcregister_func2std.sh -d ${base_directory} --subject ${subject} --session ${session} --run ${run} --res ${func_res} --func-name ${func_name}
-  
-  ## 3. func segmentation
-  ${scripts_dir}/ccs_bids_03_funcsegment.sh -d ${base_directory} --subject ${subject} --session ${session} --run ${run} --func-name ${func_name}
-  
-  ## 4. func generate nuisance 
-  ${scripts_dir}/ccs_bids_04_funcnuisance.sh -d ${base_directory} --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --svd
-  
-  ## 5. func nuisance regression, filter, smoothing preproc
-  ${scripts_dir}/ccs_bids_05_funcpreproc_vol.sh -d ${base_directory} --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --motion-model ${motion_model} --FWHM ${FWHM} --compcor --hp ${hp} --lp ${lp} --res 1.0
 
+  if [[ $dist_corr == *"--topup"* ]]; then
+    ## 2. func to anat registration
+    ${scripts_dir}/ccs_bids_02_funcregister_func2anat.sh -d ${base_directory} --dc-method topup --reg-method ${reg_method} --subject ${subject} --session ${session} --res ${func_res} --func-name ${func_name}
+  
+    ## 2. func to std registration
+    ${scripts_dir}/ccs_bids_02_funcregister_func2std.sh -d ${base_directory} --dc-method topup --subject ${subject} --session ${session} --run ${run} --res ${func_res} --func-name ${func_name}
+  
+    ## 3. func segmentation
+    ${scripts_dir}/ccs_bids_03_funcsegment.sh -d ${base_directory} --dc-method topup --subject ${subject} --session ${session} --run ${run} --func-name ${func_name}
+  
+    ## 4. func generate nuisance 
+    ${scripts_dir}/ccs_bids_04_funcnuisance.sh -d ${base_directory} --dc-method topup --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --svd
+  
+    ## 5. func nuisance regression, filter, smoothing preproc
+    ${scripts_dir}/ccs_bids_05_funcpreproc_vol.sh -d ${base_directory} --dc-method topup --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --motion-model ${motion_model} --FWHM ${FWHM} --compcor --hp ${hp} --lp ${lp} --res 1.0
+  fi
+  if [[ $dist_corr == *"--omni"* ]]; then
+    ## 2. func to anat registration
+    ${scripts_dir}/ccs_bids_02_funcregister_func2anat.sh -d ${base_directory} --dc-method omni --reg-method ${reg_method} --subject ${subject} --session ${session} --res ${func_res} --func-name ${func_name}
+  
+    ## 2. func to std registration
+    ${scripts_dir}/ccs_bids_02_funcregister_func2std.sh -d ${base_directory} --dc-method omni --subject ${subject} --session ${session} --run ${run} --res ${func_res} --func-name ${func_name}
+  
+    ## 3. func segmentation
+    ${scripts_dir}/ccs_bids_03_funcsegment.sh -d ${base_directory} --dc-method omni --subject ${subject} --session ${session} --run ${run} --func-name ${func_name}
+  
+    ## 4. func generate nuisance 
+    ${scripts_dir}/ccs_bids_04_funcnuisance.sh -d ${base_directory} --dc-method omni --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --svd
+  
+    ## 5. func nuisance regression, filter, smoothing preproc
+    ${scripts_dir}/ccs_bids_05_funcpreproc_vol.sh -d ${base_directory} --dc-method omni --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --motion-model ${motion_model} --FWHM ${FWHM} --compcor --hp ${hp} --lp ${lp} --res 1.0
+  fi
+  if [[ $dist_corr == *"--fugue"* ]]; then
+    ## 2. func to anat registration
+    ${scripts_dir}/ccs_bids_02_funcregister_func2anat.sh -d ${base_directory} --dc-method fugue --reg-method ${reg_method} --subject ${subject} --session ${session} --res ${func_res} --func-name ${func_name}
+  
+    ## 2. func to std registration
+    ${scripts_dir}/ccs_bids_02_funcregister_func2std.sh -d ${base_directory} --dc-method fugue --subject ${subject} --session ${session} --run ${run} --res ${func_res} --func-name ${func_name}
+  
+    ## 3. func segmentation
+    ${scripts_dir}/ccs_bids_03_funcsegment.sh -d ${base_directory} --dc-method fugue --subject ${subject} --session ${session} --run ${run} --func-name ${func_name}
+  
+    ## 4. func generate nuisance 
+    ${scripts_dir}/ccs_bids_04_funcnuisance.sh -d ${base_directory} --dc-method fugue --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --svd
+
+    ## 5. func nuisance regression, filter, smoothing preproc
+    ${scripts_dir}/ccs_bids_05_funcpreproc_vol.sh -d ${base_directory} --dc-method fugue --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --motion-model ${motion_model} --FWHM ${FWHM} --compcor --hp ${hp} --lp ${lp} --res 1.0
+  fi
+  if [[ $dist_corr == *"--no-dc"* ]]; then
+    ## 2. func to anat registration
+    ${scripts_dir}/ccs_bids_02_funcregister_func2anat.sh -d ${base_directory} --dc-method no-dc --reg-method ${reg_method} --subject ${subject} --session ${session} --res ${func_res} --func-name ${func_name}
+  
+    ## 2. func to std registration
+    ${scripts_dir}/ccs_bids_02_funcregister_func2std.sh -d ${base_directory} --dc-method no-dc --subject ${subject} --session ${session} --run ${run} --res ${func_res} --func-name ${func_name}
+  
+    ## 3. func segmentation
+    ${scripts_dir}/ccs_bids_03_funcsegment.sh -d ${base_directory} --dc-method no-dc --subject ${subject} --session ${session} --run ${run} --func-name ${func_name}
+  
+    ## 4. func generate nuisance 
+    ${scripts_dir}/ccs_bids_04_funcnuisance.sh -d ${base_directory} --dc-method no-dc --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --svd
+
+    ## 5. func nuisance regression, filter, smoothing preproc
+    ${scripts_dir}/ccs_bids_05_funcpreproc_vol.sh -d ${base_directory} --dc-method no-dc --subject ${subject} --session ${session} --run ${run} --func-name ${func_name} --motion-model ${motion_model} --FWHM ${FWHM} --compcor --hp ${hp} --lp ${lp} --res 1.0
+  fi
 fi

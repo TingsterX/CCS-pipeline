@@ -63,22 +63,31 @@ while test $# -gt 0; do
       fi
       shift
       ;;
+    --dc-method)
+      shift
+      export dc_method=$1
+      shift
+      ;;
     *)
       echo "Bad arguments!"
       exit 0
   esac
 done
         
-        
 
 exec > >(tee "Logs/${subject}/02_funcregister_func2anat_log.txt") 2>&1
-set -x 
+set -x
+
+if [ -z ${dc_method} ]; then
+  dc_method=nondc
+  mkdir ${base_directory}/${subject}/${session}/func_nondc
+fi
 
 ## directory setup
 anat_dir=${base_directory}/${subject}/${session}/anat
-func_dir=${base_directory}/${subject}/${session}/func
+func_dir=${base_directory}/${subject}/${session}/func_${dc_method}
 anat_reg_dir=${anat_dir}/reg
-func_min_dir=${func_dir}/func_minimal
+func_min_dir=${base_directory}/${subject}/${session}/func_minimal
 func_reg_dir=${func_dir}/func_reg
 highres=${anat_reg_dir}/highres.nii.gz
 SUBJECTS_DIR=${base_directory}/${subject}/${session}

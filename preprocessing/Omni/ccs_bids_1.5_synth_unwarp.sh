@@ -77,7 +77,7 @@ if [ -z $program ]; then
 fi
 
 ## Setting up common directories
-func_dir=${base_directory}/${subject}/${session}/func
+func_dir=${base_directory}/${subject}/${session}
 anat_dir=${base_directory}/${subject}/${session}/anat
 fmap_dir=${base_directory}/${subject}/${session}/fmap
 Omni_dir=${working_dir}/preprocessing/Omni
@@ -116,7 +116,7 @@ cp ${func_dir}/func_minimal/${rest}_mc.nii.gz ${func_dir}/func_minimal/${rest}_m
 ## synth unwarp
 echo "Running synth unwarp..."
 mkdir ${func_dir}/Synth-Unwarp
-singularity exec --bind ${base_directory}/${subject}/${session}:/files ${Omni_dir}/omni_2022.6.23.sif omni_synthunwarp -o /files/func/Synth-Unwarp -x /files/anat/Synth-Unwarp/${subject}_${session}_${run}_T1w_bc.nii.gz -y /files/anat/Synth-Unwarp/${subject}_${session}_${run}_T2w_bc.nii.gz -m /files/anat/mask/brain_fs_mask.nii.gz -r /files/func/func_minimal/epi_reference_zscore.nii.gz -b /files/func/func_minimal/example_func_mask.nii.gz -e /files/func/func_minimal/${rest}_mc_dblq.nii.gz --program ${program}
+singularity exec --bind ${base_directory}/${subject}/${session}:/files ${Omni_dir}/omni_2022.6.23.sif omni_synthunwarp -o /files/Synth-Unwarp -x /files/anat/Synth-Unwarp/${subject}_${session}_${run}_T1w_bc.nii.gz -y /files/anat/Synth-Unwarp/${subject}_${session}_${run}_T2w_bc.nii.gz -m /files/anat/mask/brain_fs_mask.nii.gz -r /files/func_minimal/epi_reference_zscore.nii.gz -b /files/func_minimal/example_func_mask.nii.gz -e /files/func_minimal/${rest}_mc_dblq.nii.gz --program ${program}
 
 ## SQUEEZE OUT 5TH DIMENSION OF WARP FILE
 echo "Squeezing dimension from warp file..."
@@ -125,7 +125,7 @@ python ${working_dir}/preprocessing/Omni/squeeze_warp.py ${func_dir}/Synth-Unwar
 ## final unwarped func (also want to register to T1 space)
 echo "Unwarping final data..."
 cp ${anat_dir}/reg/highres.nii.gz ${func_dir}/Synth-Unwarp/input_data/${subject}_${session}_${run}_T1w_brain.nii.gz
-3dresample -input ${func_dir}/Synth-Unwarp/input_data/${subject}_${session}_${run}_T1w_brain.nii.gz -dxyz $pixdim1 $pixdim2 $pixdim3 -master ${func_dir}/${rest}.nii.gz -prefix ${func_dir}/Synth-Unwarp/input_data/${subject}_${session}_${run}_T1w_brain_resampled.nii.gz -overwrite
+3dresample -input ${func_dir}/Synth-Unwarp/input_data/${subject}_${session}_${run}_T1w_brain.nii.gz -dxyz $pixdim1 $pixdim2 $pixdim3 -master ${func_dir}/func/${rest}.nii.gz -prefix ${func_dir}/Synth-Unwarp/input_data/${subject}_${session}_${run}_T1w_brain_resampled.nii.gz -overwrite
 
 ## MAKING EDGE ##################
 flirt -in ${func_dir}/Synth-Unwarp/input_data/${subject}_${session}_${run}_T1w_brain.nii.gz -ref ${func_dir}/func_minimal/example_func_brain.nii.gz -omat ${func_dir}/Synth-Unwarp/input_data/${subject}_${session}_${run}_T1w_to_epi.mat -out ${func_dir}/Synth-Unwarp/input_data/${subject}_${session}_${run}_T1w_in_epi_brain.nii.gz -dof 6

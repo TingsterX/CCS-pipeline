@@ -33,6 +33,10 @@ while test $# -gt 0; do
             shift
             export omni=true
             ;;
+        --no-dc)
+            shift
+            export no_dc=true
+            ;;
         --program)
             shift
             export program=$1
@@ -162,10 +166,11 @@ if [ -z $program ]; then program=afni; fi
 ## Setting up common directories
 fieldmap_dir=${base_directory}/${subject}/${session}/fmap
 anat_dir=${base_directory}/${subject}/${session}/anat
-func_dir=${base_directory}/${subject}/${session}/func
+func_dir=${base_directory}/${subject}/${session}
 fugue_dir=${base_directory}/${subject}/${session}/func_fugue
 topup_dir=${base_directory}/${subject}/${session}/func_topup
 omni_dir=${base_directory}/${subject}/${session}/func_omni
+no_dc_dir=${base_directory}/${subject}/${session}/func_no-dc
 
 ## IF RUNNING PREPARE FIELDMAP 
 
@@ -229,7 +234,7 @@ elif [[ $topup == "true" ]]; then
 
     ## Take one volume of each of the scans to make b0 images
     fslroi ${func_dir}/func_minimal/${func_name}_mc.nii.gz ${topup_dir}/b0_image_1.nii.gz 7 1
-    fslroi ${func_dir}/${func_name_2}.nii.gz ${topup_dir}/b0_image_2.nii.gz 7 1
+    fslroi ${func_dir}/func/${func_name_2}.nii.gz ${topup_dir}/b0_image_2.nii.gz 7 1
     ## Now merge them
     fslmerge -t ${topup_dir}/b0_images.nii.gz ${topup_dir}/b0_image_1.nii.gz ${topup_dir}/b0_image_2.nii.gz
 
@@ -237,10 +242,10 @@ elif [[ $topup == "true" ]]; then
     topup --imain=${topup_dir}/b0_images.nii.gz --datain=${topup_dir}/datain_param.txt --out=${topup_dir}/topup_unwarping
 
     ## make sure the dimensions of the first and second image are the same
-    nvols=`fslnvols ${func_dir}/${func_name_2}.nii.gz`
+    nvols=`fslnvols ${func_dir}/func/${func_name_2}.nii.gz`
     TRstart=${ndvols}
     let "TRend = ${nvols} - 1"
-    3dcalc -a ${func_dir}/${func_name_2}.nii.gz[${TRstart}..${TRend}] -expr 'a' -prefix ${topup_dir}/${func_name_2}_dr.nii.gz -datum float
+    3dcalc -a ${func_dir}/func/${func_name_2}.nii.gz[${TRstart}..${TRend}] -expr 'a' -prefix ${topup_dir}/${func_name_2}_dr.nii.gz -datum float
 
     ## Then we apply topup
     applytopup --imain=${func_dir}/func_minimal/${func_name}_mc,${topup_dir}/${func_name_2}_dr --topup=${topup_dir}/topup_unwarping --datain=${topup_dir}/datain_param.txt --inindex=1,2 --out=${topup_dir}/${func_name}_unwarped.nii.gz
@@ -249,7 +254,13 @@ elif [[ $topup == "true" ]]; then
     fslmaths ${topup_dir}/example_func_unwarped.nii.gz -mas ${func_dir}/func_minimal/example_func_mask.nii.gz ${func_dir}/func_minimal/example_func_unwarped_brain.nii.gz
 
     cp ${topup_dir}/${func_name}_unwarped.nii.gz ${func_dir}/func_minimal/.
-    
+
+## Need to have a nondc distortion correction step as well
+elif [[ $no_dc == "true" ]]; then
+
+    if [ ! -d ${no_dc_dir} ]; then
+        mkdir ${no_dc_dir}
+    fi
 
 fi
 

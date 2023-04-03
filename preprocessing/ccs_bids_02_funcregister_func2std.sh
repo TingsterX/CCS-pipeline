@@ -63,6 +63,11 @@ while test $# -gt 0; do
       fi
       shift
       ;;
+    --dc-method)
+      shift
+      export dc_method=$1
+      shift
+      ;;
     *)
       echo "Invalid input"
       exit 0
@@ -72,19 +77,23 @@ done
 exec > >(tee "Logs/${subject}/02_funcregister_func2std_log.txt") 2>&1
 set -x 
 
+if [ -z ${dc_method} ]; then
+  dc_method=nondc
+fi
+
 ## directory setup
 ccs_dir=`pwd`
 anat_dir=${base_directory}/${subject}/${session}/anat
-func_dir=${base_directory}/${subject}/${session}/func
+func_dir=${base_directory}/${subject}/${session}/func_${dc_method}
 anat_reg_dir=${anat_dir}/reg
-func_min_dir=${func_dir}/func_minimal
+func_min_dir=${base_directory}/${subject}/${session}/func_minimal
 func_reg_dir=${func_dir}/func_reg
 highres=${anat_reg_dir}/highres.nii.gz
 
 if [ -f ${func_min_dir}/example_func_brain_unwarped.nii.gz ]; then
-  example_func=${func_min_dir}/example_func_unwarped_brain.nii.gz
+  example_func=${func_dir}/example_func_unwarped_brain.nii.gz
 else
-  example_func=${func_min_dir}/example_func_brain.nii.gz
+  example_func=${func_dir}/example_func_brain.nii.gz
 fi
 
 if [ -z ${res} ]; then
@@ -104,7 +113,7 @@ standard_func=${ccs_dir}/templates/MacaqueYerkes19_T1w_${res}mm.nii.gz
 
 
 echo "---------------------------------------"
-echo "!!!! FUNC To STANDARD REGISTRATION !!!!"
+echo "!!!! FUNC TO STANDARD REGISTRATION !!!!"
 echo "---------------------------------------"
 
 ##------------------------------------------------

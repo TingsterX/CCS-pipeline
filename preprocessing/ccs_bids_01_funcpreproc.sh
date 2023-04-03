@@ -86,7 +86,7 @@ anat_dir=${base_directory}/${subject}/${session}/anat
 func_dir=${base_directory}/${subject}/${session}/func
 func_min_dir_name=func_minimal
 highres_rpi=${anat_dir}/reg/highres_rpi.nii.gz
-func_min_dir=${func_dir}/${func_min_dir_name}
+func_min_dir=${base_directory}/${subject}/${session}/${func_min_dir_name}
 
 
 if [ -z $if_redo ]; then if_redo=false; fi
@@ -98,7 +98,7 @@ cwd=$( pwd )
 mkdir -p ${func_min_dir}/reg4mask
 pushd ${func_min_dir}
 if [ -f ${rest}.nii.gz ]; then rm ${rest}.nii.gz; fi
-ln -s ../${rest}.nii.gz ${rest}.nii.gz 
+ln -s ${func_dir}/${rest}.nii.gz ${rest}.nii.gz 
 popd
 
 echo "---------------------------------------"
@@ -141,7 +141,6 @@ if [[ ! -f ${rest}_dr.nii.gz ]]; then
   let "TRend = ${nvols} - 1"
   3dcalc -a ${rest}.nii.gz[${TRstart}..${TRend}] -expr 'a' -prefix ${rest}_dr.nii.gz -datum float
   3drefit -TR ${TR} ${rest}_dr.nii.gz
-  echo "This func dataset < 15 time points" > ../func_preproc.log
 else
   echo "Dropping first ${ndvols} TRs (done, skip)"
 fi

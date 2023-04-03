@@ -54,6 +54,11 @@ while test $# -gt 0; do
 			  fi
 			  shift
 			  ;;
+      --dc-method)
+        shift
+        export dc_method=$1
+        shift
+        ;;
       *)
         echo "Invalid input"
         exit 0
@@ -63,9 +68,13 @@ done
 exec > >(tee "Logs/${subject}/03_funcsegment_log.txt") 2>&1
 set -x 
 
+if [ -z ${dc_method} ]; then
+  dc_method=nondc
+fi
+
 ## directory setup
 anat_dir=${base_directory}/${subject}/${session}/anat
-func_dir=${base_directory}/${subject}/${session}/func
+func_dir=${base_directory}/${subject}/${session}/func_${dc_method}
 func_reg_dir=${func_dir}/func_reg
 func_seg_dir=${func_dir}/func_seg
 SUBJECTS_DIR=${base_directory}/${subject}/${session}

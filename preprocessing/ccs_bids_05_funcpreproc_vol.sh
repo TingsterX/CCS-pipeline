@@ -104,6 +104,11 @@ while test $# -gt 0; do
 			  fi
 			  shift
 			  ;;
+      --dc-method)
+        shift
+        export dc_method=$1
+        shift
+        ;;
       *)
         echo "Invalid input"
         exit 0
@@ -116,14 +121,14 @@ set -x
 ## directory setup
 ccs_dir=`pwd`
 anat_dir=${base_directory}/${subject}/${session}/anat
-func_dir=${base_directory}/${subject}/${session}/func
+func_dir=${base_directory}/${subject}/${session}/func_${dc_method}
 anat_reg_dir=${anat_dir}/reg
 func_reg_dir=${func_dir}/func_reg
 nuisance_dir=${func_dir}/func_nuisance
 func_proc_dir=${func_dir}/func_proc
 
 ## template
-standard=${ccs_dir}/templates/MacaqueYerkes19_T1w_${res_std}mm.nii.gz
+standard=${ccs_dir}/templates/MacaqueYerkes19_T1w_${res_std}mm.nii.gz 
 ## input data
 func_input=${func_reg_dir}/${rest}_gms.nii.gz
 func_mask=${func_reg_dir}/${rest}_pp_mask.nii.gz
