@@ -6,55 +6,106 @@
 ## Ting Xu 202204, BIDS format input
 ##########################################################################################################################
 
-## name of the anat directory
-anat_dir=$1
-## anat_reg_dir_name
-anat_reg_dir_name=$2
-## FS SUBJECTS_DIR
-SUBJECTS_DIR=$3
-## subject
-subject=$4
-## name of the resting-state scan
-rest=$5
-## name of the func directory
-func_dir=$6
-## func_minimal_preproc_dir_name: func_minimal
-func_min_dir_name=$7
-## func reg method
-reg_method=$8 # fsbbr flirtbbr flirt
-## func reg directory name
-func_reg_dir_name=$9
-## if use the bias field corrected example_func_brain to do alignment
-if_use_bc=${10}
-## resolution
-res=${11}
-## redo_reg
-redo_reg=${12}
+while test $# -gt 0; do 
+  case "$1" in
+    -d)
+     shift
+      if test $# -gt 0; then
+        export base_directory=$1
+      else
+        echo "No base directory specified (path/to/subject_folder)"
+        exit 1
+      fi
+      shift
+      ;;
+    --reg-method*)
+      shift
+      if test $# -gt 0; then
+        export reg_method=`echo $1 | sed -e 's/^[^=]*=//g'`
+      else
+        echo "Need to specify the reg method (fsbbr, fslbbr, flirt)"
+      fi
+      shift
+      ;;
+    --subject*)
+      shift
+      if test $# -gt -0; then
+        export subject=`echo $1 | sed -e 's/^[^=]*=//g'`
+      else
+        echo "No subject ID specified (sub-******)"
+      fi
+      shift
+      ;;
+    --session*)
+	    shift
+	    if test $# -gt 0; then
+			  export session=`echo $1 | sed -e 's/^[^=]*=//g'`
+		  else
+		    echo "Need to specify session number"
+	    fi
+	    shift
+	    ;;
+    --res*)
+      shift
+      if test $# -gt 0; then
+        export res=`echo $1 | sed -e 's/^[^=]*=//g'`
+      else
+        echo "Specify resolution !"
+      fi
+      shift
+      ;;
+    --func-name)
+      shift
+      if test $# -gt 0; then
+        export rest=`echo $1 | sed -e 's/^[^=]*=//g'`
+      else
+        echo "Specify name of resting state scan"
+      fi
+      shift
+      ;;
+    --dc-method)
+      shift
+      export dc_method=$1
+      shift
+      ;;
+    *)
+      echo "Bad arguments!"
+      exit 0
+  esac
+done
+        
 
-## directory setup
-anat_reg_dir=${anat_dir}/${anat_reg_dir_name}
-func_min_dir=${func_dir}/${func_min_dir_name}
-func_reg_dir=${func_dir}/${func_reg_dir_name}
-highres=${anat_reg_dir}/highres.nii.gz
+exec > >(tee "Logs/${subject}/02_funcregister_func2anat_log.txt") 2>&1
+set -x
 
-if [ $# -lt 6 ];
-then
-        echo -e "\033[47;35m Usage: $0 anat_dir_path anat_reg_dir_name SUBJECTS_DIR subID func_name func_dir_path func_min_dir_name (default: func_minimal) reg_method (fsbbr[default], flirtbbr, flirt) func_reg_dir_name(default: reg) if_use_BiasFieldCorrected_example_func_brain resolution(default:3 in mm) redo_reg (default:true) \033[0m"
-        exit
+if [ -z ${dc_method} ]; then
+  dc_method=nondc
+  mkdir ${base_directory}/${subject}/${session}/func_nondc
 fi
 
+## directory setup
+anat_dir=${base_directory}/${subject}/${session}/anat
+func_dir=${base_directory}/${subject}/${session}/func_${dc_method}
+anat_reg_dir=${anat_dir}/reg
+func_min_dir=${base_directory}/${subject}/${session}/func_minimal
+func_reg_dir=${func_dir}/func_reg
+highres=${anat_reg_dir}/highres.nii.gz
+SUBJECTS_DIR=${base_directory}/${subject}/${session}
+
+if [ -f ${func_min_dir}/example_func_unwarped_brain.nii.gz ]; then
+  mov=${func_min_dir}/example_func_unwarped_brain.nii.gz
+else
+  mov=${func_min_dir}/example_func_brain.nii.gz
+fi
+
+
 echo "---------------------------------------"
-echo "!!!! FUNC To ANAT REGISTRATION !!!!"
+echo "!!!! FUNC TO ANAT REGISTRATION !!!!"
 echo "---------------------------------------"
 
 ## check the input: reg_method options: fsbbr fslbbr flirt
 if [ -z ${reg_method} ]; then
   reg_method=fsbbr
-fi
-
-if [ -z ${if_use_bc} ]; then
-  echo "func volume used for registration: bias field corrected example_func_brain_bc"
-  if_use_bc=true
 fi
 
 if [ -z ${res} ]; then
@@ -83,15 +134,9 @@ cd ${func_reg_dir}
 if [[ ${redo_reg} == "true" ]] || [[ ! -f ${func_reg_dir}/example_func2highres_rpi.nii.gz ]]; then
   rm -r ${func_reg_dir}/*
   
-  ##---------------------------------------------
-  ## select the func volume for registration
-  if [ ${if_use_bc} = 'true' ]; then
-    echo "func volume used for registration: example_func_brain_bc (bias corrected)"
-    mov=${func_min_dir}/example_func_brain_bc.init.nii.gz
-  else
-    echo "func volume used for registration: example_func_brain"
-    mov=${func_min_dir}/example_func_brain.init.nii.gz
-  fi
+##---------------------------------------------
+## select the func volume for registration
+  echo "func volume used for registration: ${mov}"
   
   ## convert the example_func to RSP orient
   rm -f ${func_reg_dir}/tmp_example_func_brain_rsp.nii.gz
@@ -191,16 +236,19 @@ if [ ! -f ${rest}_pp_mask.nii.gz ] || [[ ${redo_reg} == "true" ]]; then
   echo ">> refine func_pp_mask based on func-anat registration "
   cp ${func_min_dir}/example_func.nii.gz ${func_reg_dir}/
   cp ${func_min_dir}/example_func_bc.nii.gz ${func_reg_dir}/
+  cp ${func_min_dir}/example_func_mask.nii.gz ${func_reg_dir}/
+  cp ${func_min_dir}/example_func_brain.nii.gz ${func_reg_dir}/
   flirt -ref example_func.nii.gz -in ${highres} -out tmpT1.nii.gz -applyxfm -init highres2example_func.mat -interp trilinear
   fslmaths tmpT1.nii.gz -bin tmpMask.nii.gz
-  fslmaths ${func_min_dir}/${rest}_mc.nii.gz -Tstd -bin ${rest}_pp_mask.nii.gz
-  fslmaths ${rest}_pp_mask.nii.gz -mul ${func_min_dir}/${rest}_mask.initD.nii.gz -mul tmpMask.nii.gz ${rest}_pp_mask.nii.gz -odt char
+  fslmaths ${func_min_dir}/${rest}.nii.gz -Tstd -bin ${rest}_old_pp_mask.nii.gz 
+  fslmaths ${rest}_old_pp_mask.nii.gz -mul ${func_min_dir}/example_func_brain.nii.gz -mul tmpMask.nii.gz ${rest}_old_pp_mask.nii.gz -odt char
   rm -v tmpT1.nii.gz tmpMask.nii.gz
 
   ## apply the registration (func->anat)
-  fslmaths example_func.nii.gz -mas ${rest}_pp_mask.nii.gz example_func_brain.nii.gz
-  fslmaths example_func_bc.nii.gz -mas ${rest}_pp_mask.nii.gz example_func_brain_bc.nii.gz
+  fslmaths example_func.nii.gz -mas ${rest}_old_pp_mask.nii.gz old_example_func_brain.nii.gz
+  fslmaths example_func_bc.nii.gz -mas ${rest}_old_pp_mask.nii.gz old_example_func_brain_bc.nii.gz
   flirt -in example_func_brain.nii.gz -ref ${anat_reg_dir}/highres_rpi.nii.gz -applyxfm -init example_func2highres_rpi.mat -out example_func2highres_rpi.nii.gz -interp spline
+  cp example_func_brain.nii.gz ${rest}_pp_mask.nii.gz
 
   ##------------------------------------------------
   ## 3. visual check 
@@ -237,7 +285,11 @@ cd ${func_reg_dir}
 if [[ ! -f ${rest}_gms.nii.gz ]] || [[ ${redo_reg} == "true" ]] ; then
   echo ">> Skullstrip the func dataset using the refined rest_pp_mask"
   rm -f ${rest}_ss.nii.gz
-  mri_mask ${func_min_dir}/${rest}_mc.nii.gz ${rest}_pp_mask.nii.gz ${rest}_ss.nii.gz
+  if [ -f ${func_min_dir}/${rest}_unwarped.nii.gz ]; then
+    mri_mask ${func_min_dir}/${rest}_unwarped.nii.gz ${mov} ${rest}_ss.nii.gz
+  else
+    mri_mask ${func_min_dir}/${rest}_mc.nii.gz ${mov} ${rest}_ss.nii.gz
+  fi
   fslmaths ${rest}_ss.nii.gz -ing 10000 ${rest}_gms.nii.gz
 else
   echo ">> Skullstrip strip the func dataset using the refined rest_pp_mask (done, skip)"

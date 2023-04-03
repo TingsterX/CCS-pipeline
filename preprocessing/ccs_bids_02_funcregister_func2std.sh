@@ -6,47 +6,95 @@
 ## Ting Xu 202204, BIDS format input
 ##########################################################################################################################
 
-## ccs directory
-ccs_dir=$1
-## name of the anat directory
-anat_dir=$2
-## anat_reg_dir_name
-anat_reg_dir_name=$3
-## name of the resting-state scan
-rest=$4
-## name of the func directory
-func_dir=$5
-## func minimal preproc directory
-func_min_dir_name=$6
-## func reg directory name
-func_reg_dir_name=$7
-## resolution
-res=$8
-## if rerun
-if_rerun=$9
 
-## directory setup
-anat_reg_dir=${anat_dir}/${anat_reg_dir_name}
-func_min_dir=${func_dir}/${func_min_dir_name}
-func_reg_dir=${func_dir}/${func_reg_dir_name}
-highres=${anat_reg_dir}/highres.nii.gz
-example_func=${func_reg_dir}/example_func_brain.nii.gz
-## template
-standard_head=${FSLDIR}/data/standard/MNI152_T1_2mm.nii.gz
-standard_brain=${FSLDIR}/data/standard/MNI152_T1_2mm_brain.nii.gz
-standard_edge=${ccs_dir}/templates/MNI152_T1_brain_3dedge3_2mm.nii.gz # same resolution as standard_brain/head
-standard_func=${ccs_dir}/templates/MNI152_T1_${res}mm.nii.gz
+while test $# -gt 0; do
+  case "$1" in
+    -d)
+      shift
+      if test $# -gt 0; then
+        export base_directory=$1
+      else
+        echo "Need to specify input working directory (path/to/subject_folder)"
+      fi
+      shift
+      ;;
+    --subject*)
+      shift
+			if test $# -gt 0; then
+				export subject=`echo $1 | sed -e 's/^[^=]*=//g'`
+			else
+				echo "Need to specify subject number (sub-******)"
+			fi
+			shift
+			;;
+    --session*)
+			shift
+			if test $# -gt 0; then
+				export session=`echo $1 | sed -e 's/^[^=]*=//g'`
+			else
+				echo "Need to specify session number"
+			fi
+			shift
+			;;
+    --run*)
+      shift
+			if test $# -gt 0; then
+				export run=`echo $1 | sed -e 's/^[^=]*=//g'`
+			else
+				echo "Need to specify run number"
+			fi
+			shift
+			;;
+    --res*)
+      shift
+			if test $# -gt 0; then
+				export res=`echo $1 | sed -e 's/^[^=]*=//g'`
+			else
+				echo "Need to specify res"
+			fi
+			shift
+			;;
+    --func-name)
+      shift
+      if test $# -gt 0; then
+        export rest=`echo $1 | sed -e 's/^[^=]*=//g'`
+      else
+        echo "Need to specify name of resting state scan"
+      fi
+      shift
+      ;;
+    --dc-method)
+      shift
+      export dc_method=$1
+      shift
+      ;;
+    *)
+      echo "Invalid input"
+      exit 0
+  esac
+done
 
+exec > >(tee "Logs/${subject}/02_funcregister_func2std_log.txt") 2>&1
+set -x 
 
-if [ $# -lt 8 ];
-then
-        echo -e "\033[47;35m Usage: $0 ccs_dir anat_dir_path anat_reg_dir_name (e.g. reg) func_name (e.g. func) func_dir_path func_minimal_dir_name (e.g. func_minimal) func_reg_dir_name (default: reg) resolution of func write out (e.g. 3 in mm) if_refun (default: true) \033[0m"
-        exit
+if [ -z ${dc_method} ]; then
+  dc_method=nondc
 fi
 
-echo "---------------------------------------"
-echo "!!!! FUNC To STANDARD REGISTRATION !!!!"
-echo "---------------------------------------"
+## directory setup
+ccs_dir=`pwd`
+anat_dir=${base_directory}/${subject}/${session}/anat
+func_dir=${base_directory}/${subject}/${session}/func_${dc_method}
+anat_reg_dir=${anat_dir}/reg
+func_min_dir=${base_directory}/${subject}/${session}/func_minimal
+func_reg_dir=${func_dir}/func_reg
+highres=${anat_reg_dir}/highres.nii.gz
+
+if [ -f ${func_min_dir}/example_func_brain_unwarped.nii.gz ]; then
+  example_func=${func_dir}/example_func_unwarped_brain.nii.gz
+else
+  example_func=${func_dir}/example_func_brain.nii.gz
+fi
 
 if [ -z ${res} ]; then
   res=3
@@ -55,6 +103,18 @@ fi
 if [ -z ${if_rerun} ]; then
   if_rerun=true
 fi
+
+
+## template
+standard_head=${ccs_dir}/templates/MacaqueYerkes19_T1w_0.5mm.nii.gz
+standard_brain=${ccs_dir}/templates/MacaqueYerkes19_T1w_0.5mm_brain.nii.gz
+standard_edge=${ccs_dir}/templates/MacaqueYerkes19_T1w_0.5mm_brain_edge.nii.gz # same resolution as standard_brain/head
+standard_func=${ccs_dir}/templates/MacaqueYerkes19_T1w_${res}mm.nii.gz
+
+
+echo "---------------------------------------"
+echo "!!!! FUNC TO STANDARD REGISTRATION !!!!"
+echo "---------------------------------------"
 
 ##------------------------------------------------
 cwd=$( pwd )
@@ -95,12 +155,12 @@ else
 fi
 
 ## Apply to the data
-if [[ ! -f ${rest}_gms.mni152.${res}mm.nii.gz ]] || [[ "${if_rerun}" = "true" ]]; then 
+if [[ ! -f ${rest}_gms.yerkes.${res}mm.nii.gz ]] || [[ "${if_rerun}" = "true" ]]; then 
   echo ">> Apply func-anat-std registration to the func dataset"
-  applywarp --interp=nn --ref=${standard_func} --in=${rest}_pp_mask.nii.gz --out=${rest}_pp_mask.mni152.${res}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=example_func2highres.mat
+  applywarp --interp=nn --ref=${standard_func} --in=${rest}_pp_mask.nii.gz --out=${rest}_pp_mask.yerkes.${res}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=example_func2highres.mat
 
-  applywarp --interp=spline --ref=${standard_func} --in=${rest}_gms.nii.gz --out=${rest}_gms.mni152.${res}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=example_func2highres.mat
-  mri_mask ${rest}_gms.mni152.${res}mm.nii.gz ${rest}_pp_mask.mni152.${res}mm.nii.gz ${rest}_gms.mni152.${res}mm.nii.gz
+  applywarp --interp=spline --ref=${standard_func} --in=${rest}_gms.nii.gz --out=${rest}_gms.yerkes.${res}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=example_func2highres.mat
+  mri_mask ${rest}_gms.yerkes.${res}mm.nii.gz ${rest}_pp_mask.yerkes.${res}mm.nii.gz ${rest}_gms.yerkes.${res}mm.nii.gz
 else
   echo ">> Apply func-anat-std registration to the func dataset (done, skip)"
 fi

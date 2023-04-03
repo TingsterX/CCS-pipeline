@@ -10,27 +10,55 @@
 ## Ting Xu: add 3dedge for the plot
 ##########################################################################################################################
 
-## ccs_dir
-ccs_dir=$1
-## anat directory
-anat_dir=$2
-## SUBJECTS_DIR
-SUBJECTS_DIR=$3
-## subject
-subject=$4
-## name of anatomical registration directory
-anat_reg_dir_name=$5
+while test $# -gt 0; do
+        case "$1" in
+                -h|--help)
+                        shift
+                        echo ""
+                        exit 0
+                        ;;
+                -d)
+                        shift
+                        if test $# -gt 0; then
+                                export base_directory=$1
+                        else
+                                echo "Need to specify input working directory (path/to/subject_folder)"
+                        fi
+                        shift
+                        ;;
+                --subject*)
+                        shift
+			if test $# -gt 0; then
+				export subject=`echo $1 | sed -e 's/^[^=]*=//g'`
+			else
+				echo "Need to specify subject number (sub-******)"
+			fi
+			shift
+			;;
+                --session*)
+                        shift
+			if test $# -gt 0; then
+				export session=`echo $1 | sed -e 's/^[^=]*=//g'`
+			else
+				echo "Need to specify session number (ses-***)"
+			fi
+			shift
+			;;
+                *)
+                        exit 0
+        esac
+done
 
-if [ $# -lt 4 ];
-then
-        echo -e "\033[47;35m Usage: $0 subject analysis_dir session_name ccs_dir\033[0m"
-        exit
-fi
 
-if [ $# -lt 5 ];
-then
-        anat_reg_dir_name=reg
-fi
+
+exec > >(tee "Logs/${subject}/02_anatregister_log.txt") 2>&1
+set -x 
+
+anat_reg_dir_name=reg
+ccs_dir=`pwd`
+template_dir=${ccs_dir}/templates
+anat_dir=${base_directory}/${subject}/${session}/anat
+SUBJECTS_DIR=${base_directory}/${subject}/${session}
 
 ## directory example
 # anat_dir=${dir}/${subject}/${session_name}/anat
@@ -40,10 +68,10 @@ fi
 anat_reg_dir=${anat_dir}/${anat_reg_dir_name}
 anat_seg_dir=${anat_dir}/segment
 ### setup standard
-standard_head=${FSLDIR}/data/standard/MNI152_T1_2mm.nii.gz
-standard=${FSLDIR}/data/standard/MNI152_T1_2mm_brain.nii.gz
-standard_mask=${FSLDIR}/data/standard/MNI152_T1_2mm_brain_mask_dil.nii.gz
-standard_3dedge3=${ccs_dir}/templates/MNI152_T1_brain_3dedge3_2mm.nii.gz
+standard_head=${template_dir}/MacaqueYerkes19_T1w_1.0mm.nii.gz
+standard=${template_dir}/MacaqueYerkes19_T1w_1.0mm_brain.nii.gz
+standard_mask=${template_dir}/MacaqueYerkes19_T1w_1.0mm_brain_mask.nii.gz
+standard_3dedge3=${template_dir}/MacaqueYerkes19_T1w_1.0mm_brain_edge.nii.gz
 
 echo -----------------------------------------
 echo !!!! RUNNING ANATOMICAL REGISTRATION !!!!
@@ -63,7 +91,7 @@ if [ ! -f fnirt_highres2standard.nii.gz ]; then
 	fi
         rm -fv ${anat_reg_dir}/highres_head.nii.gz
 	3dresample -master ${anat_seg_dir}/brainmask.nii.gz -rmode Linear -prefix ${anat_reg_dir}/highres_head.nii.gz -inset tmp_head.nii.gz
-	fslmaths ${anat_seg_dir}/brainmask.nii.gz -thr 2 ${anat_seg_dir}/brainmask.nii.gz #clean voxels manually edited in freesurfer (assigned value 1)
+	#fslmaths ${anat_seg_dir}/brainmask.nii.gz -thr 2 ${anat_seg_dir}/brainmask.nii.gz #clean voxels manually edited in freesurfer (assigned value 1)
 	fslmaths highres_head.nii.gz -mas ${anat_seg_dir}/brainmask.nii.gz highres.nii.gz ; rm -vf tmp_head.nii.gz
 
 	## 2. FLIRT T1->STANDARD
@@ -109,7 +137,7 @@ if [ ! -f vcheck/fnirt_highres2standard_Ref-AnatBoundary.png ]; then
         pngappend slg.png + slh.png + sli.png + slj.png  + slk.png render_vcheck2.png
         pngappend slm.png + sln.png + slo.png + slp.png  + slq.png render_vcheck3.png
         pngappend render_vcheck1.png - render_vcheck2.png - render_vcheck3.png fnirt_highres2standard.png
-        title=${subject}.${session_name}.Anat-RefBoundary
+        title=${subject}.${session}.Anat-RefBoundary
         convert -font helvetica -fill white -pointsize 36 -draw "text 30,50 '$title'" fnirt_highres2standard.png fnirt_highres2standard.png
         mv fnirt_highres2standard.png vcheck/fnirt_highres2standard_Anat-RefBoundary.png
 
@@ -121,7 +149,7 @@ if [ ! -f vcheck/fnirt_highres2standard_Ref-AnatBoundary.png ]; then
         pngappend slg.png + slh.png + sli.png + slj.png  + slk.png render_vcheck2.png
         pngappend slm.png + sln.png + slo.png + slp.png  + slq.png render_vcheck3.png
         pngappend render_vcheck1.png - render_vcheck2.png - render_vcheck3.png fnirt_highres2standard.png
-        title=${subject}.${session_name}.Ref-AnatBoundary
+        title=${subject}.${session}.Ref-AnatBoundary
         convert -font helvetica -fill white -pointsize 36 -draw "text 30,50 '$title'" fnirt_highres2standard.png fnirt_highres2standard.png
         mv fnirt_highres2standard.png vcheck/fnirt_highres2standard_Ref-AnatBoundary.png
         rm -f sl?.png render_vcheck?.png  
