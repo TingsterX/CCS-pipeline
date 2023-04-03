@@ -6,143 +6,69 @@
 ## Ting Xu, 202204, BIDS format input
 ##########################################################################################################################
 
-
-while test $# -gt 0; do
-    case "$1" in   
-      -d)
-        shift
-        if test $# -gt 0; then
-          export base_directory=$1
-        else
-          echo "No base directory specified (path/to/subject_folder)"
-          exit 1
-        fi
-        shift
-        ;;
-      --subject*)
-        shift
-        if test $# -gt -0; then
-          export subject=$1
-        else
-          echo "No subject ID specified (sub-******)"
-        fi
-        shift
-        ;;
-      --session*)
-		  	shift
-			  if test $# -gt 0; then
-				  export session=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify session number"
-			  fi
-			  shift
-			  ;;
-      --run*)
-        shift
-			  if test $# -gt 0; then
-				  export run=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify run number"
-			  fi
-			  shift
-			  ;;
-      --func-name*)
-        shift
-			  if test $# -gt 0; then
-				  export rest=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify session number"
-			  fi
-			  shift
-			  ;;
-      --motion-model*)
-        shift
-			  if test $# -gt 0; then
-				  export motion_model=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify motion model (6, 12, 24, compcor)"
-			  fi
-			  shift
-			  ;;
-      --res*)
-        shift
-			  if test $# -gt 0; then
-				  export res_std=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify standard space resolution number"
-			  fi
-			  shift
-			  ;;
-      --FWHM*)
-        shift
-			  if test $# -gt 0; then
-				  export FWHM=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify desired spatial smoothing"
-			  fi
-			  shift
-			  ;;
-      --compcor*)
-        shift
-			  export compcor=true
-			  ;;
-      --hp*)
-        shift
-			  if test $# -gt 0; then
-				  export hp=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify high pass band filtering"
-			  fi
-			  shift
-			  ;;
-      --lp*)
-        shift
-			  if test $# -gt 0; then
-				  export lp=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify low pass band filtering"
-			  fi
-			  shift
-			  ;;
-      --dc-method)
-        shift
-        export dc_method=$1
-        shift
-        ;;
-      *)
-        echo "Invalid input"
-        exit 0
-    esac
-done
-
-exec > >(tee "Logs/${subject}/05_funcpreproc_vol_log.txt") 2>&1
-set -x 
+## anat_directory
+anat_dir=$1
+## anat registration directory
+anat_reg_dir_name=$2
+## func filename (no extension)
+rest=$3
+## func directory
+func_dir=$4
+## func minimal preprocess directory
+func_min_dir_name=$5
+## func registration directory
+func_reg_dir_name=$6
+## nuisance directory name
+nuisance_dir_name=$7
+## func_preprocessed directory
+func_proc_dir_name=$8
+## motion nuisance regression method (default 24): 6, 12, 24, compcor
+motion_model=$9
+## if use compcor
+compcor=${10}
+## high pass (default: 0.01Hz)
+hp=${11}
+## low pass (default: 0.1Hz)
+lp=${12}
+## set your desired spatial smoothing FWHM - we use 6 (acquisition voxel size is 3x3x4mm)
+FWHM=${13}
+## resolution out (anat space)
+res_anat=${14}
+## standard out (standard space and resolution
+res_std=${15}
+## ccs directory
+ccs_dir=${16}
+## if rerun
+if_rerun=${17}
+## do_anat2func
+do_func2anat=true
 
 ## directory setup
-ccs_dir=`pwd`
-anat_dir=${base_directory}/${subject}/${session}/anat
-func_dir=${base_directory}/${subject}/${session}/func_${dc_method}
-anat_reg_dir=${anat_dir}/reg
-func_reg_dir=${func_dir}/func_reg
-nuisance_dir=${func_dir}/func_nuisance
-func_proc_dir=${func_dir}/func_proc
+anat_reg_dir=${anat_dir}/${anat_reg_dir_name}
+func_reg_dir=${func_dir}/${func_reg_dir_name}
+nuisance_dir=${func_dir}/${nuisance_dir_name}
+func_proc_dir=${func_dir}/${func_proc_dir_name}
 
 ## template
-standard=${ccs_dir}/templates/MacaqueYerkes19_T1w_${res_std}mm.nii.gz 
+standard=${ccs_dir}/templates/MNI152_T1_${res_std}mm.nii.gz
 ## input data
 func_input=${func_reg_dir}/${rest}_gms.nii.gz
 func_mask=${func_reg_dir}/${rest}_pp_mask.nii.gz
 ## smooth kernel
 sigma=`echo "scale=10 ; ${FWHM}/2.3548" | bc`
 
+##--------------------------------------------------------
+if [ $# -lt 15 ];
+then
+        echo -e "\033[47;35m Usage: $0 anat_dir, anat_reg_dir_name, func_name func_dir func_reg_dir_name nuisance_dir_name func_proc_dir_name motion_method(6, 12, 24) compcor(false, true), high_pass low_pass FWHM, resolution_of_anat_write_out, resolution_of_std_write_out, ccs_directory(which has std in ccs_dir/templates/), if_rerun \033[0m"
+        exit
+fi
 
 if [ -z ${if_rerun} ]; then if_rerun=false; fi
 if [ -z ${motion_model} ]; then motion_model=24; fi
 if [ -z ${compcor} ]; then compcor=false; fi
-if [ -z ${res_anat} ]; then res_anat=1.0; fi
-if [ -z ${res_std} ]; then res_std=1.0; fi
-if [ -z ${hp} ]; then hp=0.01; fi
-if [ -z ${lp} ]; then lp=0.1; fi
+if [ -z ${res_anat} ]; then res_anat=3; fi
+if [ -z ${res_std} ]; then res_std=3; fi
 
 if [ ! -f ${func_input} ]; then
   echo "!!!Check the minimal preprocessed func_gms after registration"
@@ -231,19 +157,19 @@ if [ ${func_pp_done} == false ]; then
   fslmaths ${func_input} -Tmean ${rest}_pp_mean.nii.gz
   echo "hp=${hp}, lp=${lp}" > filter.log
   ## no filter (nogsr, gsr)
-  3dTproject -input ${func_input} -prefix ${rest}_pp_nofilt_sm0.nii.gz -ort ${reg_nogsr} -polort 2 -overwrite
-  3dTproject -input ${func_input} -prefix ${rest}_pp_nofilt_gsr_sm0.nii.gz -ort ${reg_gsr}  -polort 2 -overwrite
+  3dTproject -input ${func_input} -prefix ${rest}_pp_nofilt_sm0.nii.gz -ort ${reg_nogsr} -polort 2 
+  3dTproject -input ${func_input} -prefix ${rest}_pp_nofilt_gsr_sm0.nii.gz -ort ${reg_gsr}  -polort 2 
   ## filter (nogsr, gsr)
-  3dBandpass -band ${hp} ${lp} -input ${rest}_pp_nofilt_sm0.nii.gz -prefix ${rest}_pp_filter_sm0.nii.gz -overwrite
-  3dBandpass -band ${hp} ${lp} -input ${rest}_pp_nofilt_gsr_sm0.nii.gz -prefix ${rest}_pp_filter_gsr_sm0.nii.gz -overwrite
+  3dBandpass -band ${hp} ${lp} -input ${rest}_pp_nofilt_sm0.nii.gz -prefix ${rest}_pp_filter_sm0.nii.gz 
+  3dBandpass -band ${hp} ${lp} -input ${rest}_pp_nofilt_gsr_sm0.nii.gz -prefix ${rest}_pp_filter_gsr_sm0.nii.gz
   ## 5. Smooth
   echo ">> Smooth the data: FWHM=${FWHM}"
   ## filter (nogsr, gsr)
-  3dBlurInMask -input ${rest}_pp_filter_sm0.nii.gz -FWHM ${FWHM} -mask ${func_mask} -prefix ${rest}_pp_filter_sm${FWHM}.nii.gz -quite -overwrite
+  3dBlurInMask -input ${rest}_pp_filter_sm0.nii.gz -FWHM ${FWHM} -mask ${func_mask} -prefix ${rest}_pp_filter_sm${FWHM}.nii.gz -quite
   3dBlurInMask -input ${rest}_pp_filter_gsr_sm0.nii.gz -FWHM ${FWHM} -mask ${func_mask} -prefix ${rest}_pp_filter_gsr_sm${FWHM}.nii.gz -quite
   ## no filter (nogsr, gsr)
-  3dBlurInMask -input ${rest}_pp_nofilt_sm0.nii.gz -FWHM ${FWHM} -mask ${func_mask} -prefix ${rest}_pp_nofilt_sm${FWHM}.nii.gz -quite -overwrite
-  3dBlurInMask -input ${rest}_pp_nofilt_gsr_sm0.nii.gz -FWHM ${FWHM} -mask ${func_mask} -prefix ${rest}_pp_nofilt_gsr_sm${FWHM}.nii.gz -quite -overwrite
+  3dBlurInMask -input ${rest}_pp_nofilt_sm0.nii.gz -FWHM ${FWHM} -mask ${func_mask} -prefix ${rest}_pp_nofilt_sm${FWHM}.nii.gz -quite
+  3dBlurInMask -input ${rest}_pp_nofilt_gsr_sm0.nii.gz -FWHM ${FWHM} -mask ${func_mask} -prefix ${rest}_pp_nofilt_gsr_sm${FWHM}.nii.gz -quite
 else
   echo "SKIP >> Nuisance regression, no/filtering, detrending, smoothing are done"
 fi
@@ -270,19 +196,19 @@ fi
 
 ## 7. register to template space
 echo ">> Apply func-anat-std registration to func_pp_* data"
-if [ ! -f ${rest}_pp_mask.yerkes.${res_std}mm.nii.gz ]; then
-  echo "RUN >> Mask to Template Space: ${rest}_pp_mask.yerkes.${res_std}mm.nii.gz" 
-  applywarp --interp=nn --ref=${standard} --in=${func_mask} --out=${rest}_pp_mask.yerkes.${res_std}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=${func_reg_dir}/example_func2highres.mat
+if [ ! -f ${rest}_pp_mask.mni152.${res_std}mm.nii.gz ]; then
+  echo "RUN >> Mask to Template Space: ${rest}_pp_mask.mni152.${res_std}mm.nii.gz" 
+  applywarp --interp=nn --ref=${standard} --in=${func_mask} --out=${rest}_pp_mask.mni152.${res_std}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=${func_reg_dir}/example_func2highres.mat
 else
-  echo "SKIP >> Mask to Template Space: ${rest}_pp_mask.yerkes.${res_std}mm.nii.gz" 
+  echo "SKIP >> Mask to Template Space: ${rest}_pp_mask.mni152.${res_std}mm.nii.gz" 
 fi
 for func_pp in ${func_pp_list}; do
-  if [ ! -f ${func_pp}.yerkes.${res_std}mm.nii.gz ]; then
-    echo "RUN >> Data to Template Space: ${func_pp}.yerkes.${res_std}mm.nii.gz"
-    applywarp --interp=spline --ref=${standard} --in=${func_pp} --out=${func_pp}.yerkes.${res_std}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=${func_reg_dir}/example_func2highres.mat
-    mri_mask ${func_pp}.yerkes.${res_std}mm.nii.gz ${rest}_pp_mask.yerkes.${res_std}mm.nii.gz ${func_pp}.yerkes.${res_std}mm.nii.gz
+  if [ ! -f ${func_pp}.mni152.${res_std}mm.nii.gz ]; then
+    echo "RUN >> Data to Template Space: ${func_pp}.mni152.${res_std}mm.nii.gz"
+    applywarp --interp=spline --ref=${standard} --in=${func_pp} --out=${func_pp}.mni152.${res_std}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=${func_reg_dir}/example_func2highres.mat
+    mri_mask ${func_pp}.mni152.${res_std}mm.nii.gz ${rest}_pp_mask.mni152.${res_std}mm.nii.gz ${func_pp}.mni152.${res_std}mm.nii.gz
   else
-    echo "SKIP >> Data to Template Space: ${func_pp}.yerkes.${res_std}mm.nii.gz"
+    echo "SKIP >> Data to Template Space: ${func_pp}.mni152.${res_std}mm.nii.gz"
   fi
 done
 
