@@ -212,6 +212,16 @@ while test $# -gt 0; do
       add_dist_corr="--no-dc "
       export dist_corr="$dist_corr$add_dist_corr"
       ;;
+    --DCAN_out)
+      shift
+      export DCAN_out=$1
+      shift
+      ;;
+    --DCAN_in)
+      shift
+      export DCAN_in=$1
+      shift
+      ;;
     *)
       usage
       echo ""
@@ -271,6 +281,11 @@ if [ ${run_anat} == true ]; then
   
   ## 3. registration
   ${scripts_dir}/ccs_bids_02_anatregister.sh -d ${base_directory} --subject ${subject} --session ${session}
+
+else
+
+  ## Pull DCAN data and create subject directories if ${run_anat} == FALSE
+  ${scripts_dir}/ccs_bids_0.5_prepare-func.sh --output ${base_directory} --subject ${subject} --session ${session} --run ${run} --DCAN_out /home/salldritt/projects/DCAN/DCAN_out/site-amu-8.15.2022 --DCAN_in /home/salldritt/projects/DCAN/DCAN_in/site-amu --func-name ${func_name} --func-name-2 ${func_name_2} 
 
 fi
 

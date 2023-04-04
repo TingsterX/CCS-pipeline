@@ -90,7 +90,7 @@ func_min_dir=${base_directory}/${subject}/${session}/func_minimal
 func_reg_dir=${func_dir}/func_reg
 highres=${anat_reg_dir}/highres.nii.gz
 
-if [ -f ${func_min_dir}/example_func_brain_unwarped.nii.gz ]; then
+if [ -f ${func_min_dir}/example_func_unwarped_brain.nii.gz ]; then
   example_func=${func_dir}/example_func_unwarped_brain.nii.gz
 else
   example_func=${func_dir}/example_func_brain.nii.gz
