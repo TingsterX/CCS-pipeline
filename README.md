@@ -1,9 +1,13 @@
 # Connectome Computation System (CCS)
 
-Connectome Computation System (CCS) is designed for Discovery Science of the human brain from Lab For Functional Connectome and Development (LFCD). **Source version** of the CCS pipeline is on Github: https://github.com/zuoxinian/CCS. 
+Connectome Computation System (CCS) is designed for Discovery Science of the human brain. 
 
-This repo includes **customized versions** for different data.
+This branch is **CCS v1.0** for (f)MRI preprocessing, which includes the updates as follow:
+-   Add FSL-FAST in structural preprocessing as an option for tissue segmentation
+-   The native structural data (intermediate and preprocessed) in mask, reg, segment, and segment_fast subfolders are all in FS conformed space.
+-   The functional preprocessed data are organized in func_minimal, func_reg, func_seg, func_nuisance, func_preproc subfolders.
 
+**Source version** of the CCS pipeline is on Github: https://github.com/zuoxinian/CCS. 
 
 If you use or are inspired by CCS, please credit it both the github link and the two key references:
 
