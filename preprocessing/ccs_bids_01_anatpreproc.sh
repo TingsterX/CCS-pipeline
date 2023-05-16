@@ -10,7 +10,7 @@
 Usage() {
 	cat <<EOF
 
-${0}: ANAT preprocess step 1: brain extraction, ACPC alignment
+${0}: ANAT preprocess step 1: brain extraction
 
 Usage: ${0}
 	--ref_head=[template head ], default=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz
@@ -104,7 +104,7 @@ echo "------------------------------------------------"
 bet_thr_tight=0.3 ; bet_thr_loose=0.1
 
 # vcheck function 
-vcheck_mask(){
+vcheck_mask() {
 	underlay=$1
 	overlay=$2
 	figout=$3
@@ -181,52 +181,55 @@ echo "Perform a tight brain extraction ..."
 Do_cmd bet tmp_head_fs2standard.nii.gz tmp.nii.gz -f ${bet_thr_tight} -m
 Do_cmd fslmaths tmp_mask.nii.gz -mas ${template_init_mask} tmp_mask.nii.gz
 Do_cmd flirt -in tmp_mask.nii.gz -applyxfm -init tmp_standard2head_fs.mat -out brain_mask_fsl_tight.nii.gz -paddingsize 0.0 -interp nearestneighbour -ref T1.nii.gz
-Do_cmd fslmaths brain_mask_fs.nii.gz -add brain_mask_fsl_tight.nii.gz -bin brain_mask_tight.nii.gz
+Do_cmd fslmaths brain_mask_fs.nii.gz -add brain_mask_fsl_tight.nii.gz -bin brain_brain_fs+.nii.gz
 Do_cmd fslmaths T1.nii.gz -mas brain_mask_fsl_tight.nii.gz brain_fsl_tight.nii.gz
-Do_cmd fslmaths T1.nii.gz -mas brain_mask_tight.nii.gz brain_tight.nii.gz
+Do_cmd fslmaths T1.nii.gz -mas brain_brain_fs+.nii.gz brain_fs+.nii.gz
 Do_cmd rm -f tmp.nii.gz
-Do_cmd 3dresample -master T1.nii.gz -inset brain_tight.nii.gz -prefix tmp.nii.gz
-Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/${subject}/mri/brain_tight.mgz
-Do_cmd mri_mask ${SUBJECTS_DIR}/${subject}/mri/T1.mgz ${SUBJECTS_DIR}/${subject}/mri/brain_tight.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.tight.mgz
+Do_cmd 3dresample -master T1.nii.gz -inset brain_fs+.nii.gz -prefix tmp.nii.gz
+Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/${subject}/mri/brain_fs+.mgz
+Do_cmd mri_mask ${SUBJECTS_DIR}/${subject}/mri/T1.mgz ${SUBJECTS_DIR}/${subject}/mri/brain_fs+.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.tight.mgz
 
 echo "Perform a loose brain extraction ..."
 Do_cmd bet tmp_head_fs2standard.nii.gz tmp.nii.gz -f ${bet_thr_loose} -m
 Do_cmd fslmaths tmp_mask.nii.gz -mas ${template_init_mask} tmp_mask.nii.gz
 Do_cmd flirt -in tmp_mask.nii.gz -applyxfm -init tmp_standard2head_fs.mat -out brain_mask_fsl_loose.nii.gz -paddingsize 0.0 -interp nearestneighbour -ref T1.nii.gz
-Do_cmd fslmaths brain_mask_fs.nii.gz -mul brain_mask_fsl_loose.nii.gz -bin brain_mask_loose.nii.gz
+Do_cmd fslmaths brain_mask_fs.nii.gz -mul brain_mask_fsl_loose.nii.gz -bin brain_brain_fs-.nii.gz
 Do_cmd fslmaths T1.nii.gz -mas brain_mask_fsl_loose.nii.gz brain_fsl_loose.nii.gz
-Do_cmd fslmaths T1.nii.gz -mas brain_mask_loose.nii.gz brain_loose.nii.gz
+Do_cmd fslmaths T1.nii.gz -mas brain_brain_fs-.nii.gz brain_fs-.nii.gz
 Do_cmd rm -f tmp.nii.gz
-Do_cmd 3dresample -master T1.nii.gz -inset brain_loose.nii.gz -prefix tmp.nii.gz
-Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/${subject}/mri/brain_loose.mgz
-Do_cmd mri_mask ${SUBJECTS_DIR}/${subject}/mri/T1.mgz ${SUBJECTS_DIR}/${subject}/mri/brain_loose.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.loose.mgz
+Do_cmd 3dresample -master T1.nii.gz -inset brain_fs-.nii.gz -prefix tmp.nii.gz
+Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/${subject}/mri/brain_fs-.mgz
+Do_cmd mri_mask ${SUBJECTS_DIR}/${subject}/mri/T1.mgz ${SUBJECTS_DIR}/${subject}/mri/brain_fs-.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.loose.mgz
 
-## 3. make sure that prior mask is in the same FS space
-	if [[ ! -z ${prior_mask} ]] && [[ ! -z ${prior_anat} ]]; then
-	Do_cmd fslmaths ${prior_anat} -mas ${prior_mask} ${anat_dir}/mask/tmp_prior_brain.nii.gz
+## 3. make sure that prior mask is in the same raw space
+if [[ ! -z ${prior_mask} ]] && [[ ! -z ${prior_anat} ]]; then
     Do_cmd flirt -in ${prior_anat} -ref ${anat_dir}/mask/T1.nii.gz -omat ${anat_dir}/mask/xfm_prior_mask_To_T1.mat -dof 6
-	Do_cmd flirt -in ${prior_mask} -ref ${anat_dir}/mask/T1.nii.gz -applyxfm -init ${anat_dir}/mask/xfm_prior_mask_To_T1.mat -out ${anat_dir}/mask/brain_mask_prior.nii.gz
+	Do_cmd flirt -in ${prior_mask} -ref ${anat_dir}/mask/T1.nii.gz -applyxfm -init ${anat_dir}/mask/xfm_prior_mask_To_T1.mat -out ${anat_dir}/mask/brain_mask_prior.nii.gz -interp nearestneighbour
 fi
 
 ## 4. Quality check
 #FS BET
-vcheck_mask T1.nii.gz brain_mask_fs.nii.gz skull_strip_fs.png FS
+vcheck_mask T1.nii.gz brain_mask_fs.nii.gz vcheck_skull_strip_fs.png fs
 
 #FS/FSL tight BET
-vcheck_mask T1.nii.gz brain_mask_tight.nii.gz skull_strip_BETtight.png BETtight
-Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_mask_tight.nii.gz -abs -bin diff_mask_tight.nii.gz
-vcheck_mask T1.nii.gz diff_mask_tight.nii.gz diff_skull_strip_BETtight.png diff.BETtight.FS
+vcheck_mask T1.nii.gz brain_brain_fs+.nii.gz vcheck_skull_strip_fs+.png fs+
+Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_brain_fs+.nii.gz -abs -bin diff_mask_fs+.nii.gz
+vcheck_mask T1.nii.gz diff_mask_fs+.nii.gz vcheck_diff_skull_strip_fs+.png diff.fs+
 
 #FS/FSL loose BET
-vcheck_mask T1.nii.gz brain_mask_loose.nii.gz skull_strip_BETloose.png BETloose
-Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_mask_loose.nii.gz -abs -bin diff_mask_loose.nii.gz
-vcheck_mask T1.nii.gz diff_mask_loose.nii.gz diff_skull_strip_BETloose.png diff.BETloose.FS
+vcheck_mask T1.nii.gz brain_brain_fs-.nii.gz vcheck_skull_strip_fs-.png fs-
+Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_brain_fs-.nii.gz -abs -bin diff_mask_fs-.nii.gz
+vcheck_mask T1.nii.gz diff_mask_fs-.nii.gz vcheck_diff_skull_strip_fs-.png diff.fs-
 
 #prior mask
 if [[ ! -z ${prior_mask} ]] && [[ ! -z ${prior_anat} ]]; then
-    vcheck_mask T1.nii.gz brain_mask_prior.nii.gz skull_strip_prior.png prior
-    Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_mask_prior.nii.gz diff_mask_prior.nii.gz
-	vcheck_mask T1.nii.gz diff_mask_prior.nii.gz diff_skull_strip_prior.png diff_FS.prior
+    vcheck_mask T1.nii.gz brain_mask_prior.nii.gz vcheck_skull_strip_prior.png prior
+    Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_mask_prior.nii.gz  diff_mask_prior-fs.nii.gz
+	Do_cmd fslmaths diff_mask_prior.nii.gz -thr 0 -abs -bin tmp_diff_mask_prior+.nii.gz
+	Do_cmd fslmaths diff_mask_prior.nii.gz -uthr 0 -abs -bin tmp_diff_mask_prior-.nii.gz
+	vcheck_mask T1.nii.gz tmp_diff_mask_prior+.nii.gz vcheck_diff_skull_strip_prior+.png diff.prior+
+	vcheck_mask T1.nii.gz tmp_diff_mask_prior-.nii.gz vcheck_diff_skull_strip_prior-.png diff.prior-
+	Do_cmd rm tmp_diff_mask_prior?.nii.gz
 fi
 
 ## Change the working directory ----------------------------------
