@@ -18,12 +18,13 @@ Usage: ${0}
 	--anat_dir=<anatomical directory>, e.g. base_dir/subID/anat or base_dir/subID/sesID/anat
 	--SUBJECTS_DIR=<FreeSurfer SUBJECTS_DIR>, e.g. base_dir/subID/sesID
 	--subject=<subject ID>, e.g. sub001 
-	--T1w_name=[T1w name], default=T1w
 	--num_scans=[number of scans], default=1
+	--T1w_name=[T1w name], default=T1w
 	--gcut=[if use gcut option in FS], default=true
 	--denoise=[if use denoise in ANTS], default=true
 	--prior_mask=[custimized brain mask]
 	--prior_anat=[underlay of the custimized brain mask]
+	--do_skullstrip=[if perform FS/FSL skullstripping], default=true
 	
 EOF
 }
@@ -63,6 +64,7 @@ do_gcut=`getopt1 "--gcut" $@`
 do_denoise=`getopt1 "--denoise" $@`
 prior_mask=`getopt1 "--prior_mask" $@`
 prior_anat=`getopt1 "--prior_anat" $@`
+do_skullstrip=`getopt1 "--do_skullstrip" $@`
 
 ## default parameter
 template_head=`defaultopt ${template_head} ${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz`
@@ -70,12 +72,16 @@ template_init_mask=`defaultopt ${template_init_mask} ${FSLDIR}/data/standard/MNI
 T1w=`defaultopt ${T1w} T1w`
 do_gcut=`defaultopt ${do_gcut} true`
 do_denoise=`defaultopt ${do_denoise} true`
+do_skullstrip=`defaultopt ${do_skullstrip} true`
 
 ## If prior_mask is provided, make sure prior_anat is also provided
-if [ ! -z ${prior_mask} ]; then
+if [ ! -z ${prior_mask} ] ; then
 	if [ -z ${prior_anat} ]; then
 		Error "Please specify the underlay image of the prior mask"
 	fi
+else
+	do_skullstrip=true
+	Info "No prior mask is specified, run FS and FSL skullstripping"
 fi
 
 
@@ -96,6 +102,7 @@ Note "gcut=                ${do_gcut}"
 Note "denoise=             ${do_denoise}"
 Note "prior_mask=          ${prior_mask}"
 Note "prior_anat=          ${prior_anat}"
+Note "do_skullstrip=       ${do_skullstrip}"
 echo "------------------------------------------------"
 
 
@@ -123,8 +130,10 @@ echo --------------------------------------
 echo !!!! PREPROCESSING ANATOMICAL SCAN!!!!
 echo --------------------------------------
 cwd=$( pwd )
+Do_cmd mkdir ${anat_dir}/reg
 
 Do_cmd cd ${anat_dir}
+
 ## 1. Denoise (ANTS)
 if [[ "${do_denoise}" = "true" ]]; then
   	for (( n=1; n <= ${num_scans}; n++ )); do
@@ -133,111 +142,143 @@ if [[ "${do_denoise}" = "true" ]]; then
     	fi
 	done
 fi
-## 2.1 FS stage-1 (average T1w images if there are more than one)
+## 2. FS stage-1 (average T1w images if there are more than one)
 echo "Preparing data for ${sub} in freesurfer ..."
-mkdir -p ${SUBJECTS_DIR}/${subject}/mri/orig
-if [[ "${do_denoise}" = "true" ]]; then
-	for (( n=1; n <= ${num_scans}; n++ ))
-	do
-		Do_cmd 3drefit -deoblique ${anat_dir}/${T1w}_${n}_denoise.nii.gz
-		Do_cmd mri_convert --in_type nii ${T1w}_${n}_denoise.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/00${n}.mgz
-	done	
+Do_cmd mkdir -p ${SUBJECTS_DIR}/${subject}/mri/orig
+Do_cmd pushd ${SUBJECTS_DIR}/${subject}/mri/orig
+T1w_scans_list=""
+for (( n=1; n <= ${num_scans}; n++ )); do
+	if [[ "${do_denoise}" = "true" ]]; then
+		T1w_scans_list="${T1w_scans_list} ${T1w}_${n}_denoise.nii.gz"
+		#Do_cmd mri_convert --in_type nii ${anat_dir}/${T1w}_${n}_denoise.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/00${n}.mgz
+	else
+		T1w_scans_list="${T1w_scans_list} ${T1w}_${n}.nii.gz"
+		#Do_cmd mri_convert --in_type nii ${anat_dir}/${T1w}_${n}.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/00${n}.mgz
+	fi
+done
+if [ ${num_scans} -gt 1 ]; then
+	Do_cmd mri_robust_template --mov ${T1w_scans_list} --average 1 --template ${anat_dir}/${T1w}.nii.gz --satit --inittp 1 --fixtp --noit --iscale --iscaleout ${anat_dir}/reg/${T1w_scans_list//.nii.gz/-iscale.txt} --subsample 200 --lta ${anat_dir}/reg/${T1w_scans_list//.nii.gz/.lta}
 else
-	for (( n=1; n <= ${num_scans}; n++ ))
-       	do
-		Do_cmd 3drefit -deoblique ${anat_dir}/${T1w}_${n}.nii.gz
-		Do_cmd mri_convert --in_type nii ${T1w}_${n}.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/00${n}.mgz
-	done
-fi
-## 2.2 FS autorecon1 - skull stripping 
-echo "Auto reconstruction stage in Freesurfer (Take half hour ...)"
-if [ ${gcut} = 'true' ]; then
-	Do_cmd recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -no-isrunning -noappend -gcut 
-else
-	Do_cmd recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -no-isrunning -noappend
-fi
-Do_cmd cp ${SUBJECTS_DIR}/${subject}/mri/brainmask.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.fsinit.mgz
-
-## generate the registration (FS - original)
-echo "Generate the registration file FS to original (rawavg) space ..."
-Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/${subject}/mri/brain.mgz --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --noedit --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --fslregout ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.FSL.mat --regheader
-
-## Change the working directory ----------------------------------
-Do_cmd mkdir -p mask 
-Do_cmd pushd mask
-
-## 2.3 Do other processing in mask directory (rawavg, the first T1w space)
-echo "Convert FS brain mask to original space (orientation is the same as the first input T1w)..."
-Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/${subject}/mri/T1.mgz --o T1.nii.gz
-Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/${subject}/mri/brainmask.mgz --o brain_fs.nii.gz
-Do_cmd fslmaths brain_fs.nii.gz -abs -bin brain_mask_fs.nii.gz
-
-## 2.5. BET using tight and loose parameter
-echo "Simply register the T1 image to the MNI152 standard space ..."
-Do_cmd flirt -in T1.nii.gz -ref ${template_head} -out tmp_head_fs2standard.nii.gz -omat tmp_head_fs2standard.mat -bins 256 -cost corratio -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 12  -interp trilinear
-Do_cmd convert_xfm -omat tmp_standard2head_fs.mat -inverse tmp_head_fs2standard.mat
-
-echo "Perform a tight brain extraction ..."
-Do_cmd bet tmp_head_fs2standard.nii.gz tmp.nii.gz -f ${bet_thr_tight} -m
-Do_cmd fslmaths tmp_mask.nii.gz -mas ${template_init_mask} tmp_mask.nii.gz
-Do_cmd flirt -in tmp_mask.nii.gz -applyxfm -init tmp_standard2head_fs.mat -out brain_mask_fsl_tight.nii.gz -paddingsize 0.0 -interp nearestneighbour -ref T1.nii.gz
-Do_cmd fslmaths brain_mask_fs.nii.gz -add brain_mask_fsl_tight.nii.gz -bin brain_brain_fs+.nii.gz
-Do_cmd fslmaths T1.nii.gz -mas brain_mask_fsl_tight.nii.gz brain_fsl_tight.nii.gz
-Do_cmd fslmaths T1.nii.gz -mas brain_brain_fs+.nii.gz brain_fs+.nii.gz
-Do_cmd rm -f tmp.nii.gz
-Do_cmd 3dresample -master T1.nii.gz -inset brain_fs+.nii.gz -prefix tmp.nii.gz
-Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/${subject}/mri/brain_fs+.mgz
-Do_cmd mri_mask ${SUBJECTS_DIR}/${subject}/mri/T1.mgz ${SUBJECTS_DIR}/${subject}/mri/brain_fs+.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.tight.mgz
-
-echo "Perform a loose brain extraction ..."
-Do_cmd bet tmp_head_fs2standard.nii.gz tmp.nii.gz -f ${bet_thr_loose} -m
-Do_cmd fslmaths tmp_mask.nii.gz -mas ${template_init_mask} tmp_mask.nii.gz
-Do_cmd flirt -in tmp_mask.nii.gz -applyxfm -init tmp_standard2head_fs.mat -out brain_mask_fsl_loose.nii.gz -paddingsize 0.0 -interp nearestneighbour -ref T1.nii.gz
-Do_cmd fslmaths brain_mask_fs.nii.gz -mul brain_mask_fsl_loose.nii.gz -bin brain_brain_fs-.nii.gz
-Do_cmd fslmaths T1.nii.gz -mas brain_mask_fsl_loose.nii.gz brain_fsl_loose.nii.gz
-Do_cmd fslmaths T1.nii.gz -mas brain_brain_fs-.nii.gz brain_fs-.nii.gz
-Do_cmd rm -f tmp.nii.gz
-Do_cmd 3dresample -master T1.nii.gz -inset brain_fs-.nii.gz -prefix tmp.nii.gz
-Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/${subject}/mri/brain_fs-.mgz
-Do_cmd mri_mask ${SUBJECTS_DIR}/${subject}/mri/T1.mgz ${SUBJECTS_DIR}/${subject}/mri/brain_fs-.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.loose.mgz
-
-## 3. make sure that prior mask is in the same raw space
-if [[ ! -z ${prior_mask} ]] && [[ ! -z ${prior_anat} ]]; then
-    Do_cmd flirt -in ${prior_anat} -ref ${anat_dir}/mask/T1.nii.gz -omat ${anat_dir}/mask/xfm_prior_mask_To_T1.mat -dof 6
-	Do_cmd flirt -in ${prior_mask} -ref ${anat_dir}/mask/T1.nii.gz -applyxfm -init ${anat_dir}/mask/xfm_prior_mask_To_T1.mat -out ${anat_dir}/mask/brain_mask_prior.nii.gz -interp nearestneighbour
+	cp -L ${anat_dir}/${T1w}_1.nii.gz ${anat_dir}/${T1w}.nii.gz
 fi
 
-## 4. Quality check
-#FS BET
-vcheck_mask T1.nii.gz brain_mask_fs.nii.gz vcheck_skull_strip_fs.png fs
-
-#FS/FSL tight BET
-vcheck_mask T1.nii.gz brain_brain_fs+.nii.gz vcheck_skull_strip_fs+.png fs+
-Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_brain_fs+.nii.gz -abs -bin diff_mask_fs+.nii.gz
-vcheck_mask T1.nii.gz diff_mask_fs+.nii.gz vcheck_diff_skull_strip_fs+.png diff.fs+
-
-#FS/FSL loose BET
-vcheck_mask T1.nii.gz brain_brain_fs-.nii.gz vcheck_skull_strip_fs-.png fs-
-Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_brain_fs-.nii.gz -abs -bin diff_mask_fs-.nii.gz
-vcheck_mask T1.nii.gz diff_mask_fs-.nii.gz vcheck_diff_skull_strip_fs-.png diff.fs-
-
-#prior mask
-if [[ ! -z ${prior_mask} ]] && [[ ! -z ${prior_anat} ]]; then
-    vcheck_mask T1.nii.gz brain_mask_prior.nii.gz vcheck_skull_strip_prior.png prior
-    Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_mask_prior.nii.gz  diff_mask_prior-fs.nii.gz
-	Do_cmd fslmaths diff_mask_prior.nii.gz -thr 0 -abs -bin tmp_diff_mask_prior+.nii.gz
-	Do_cmd fslmaths diff_mask_prior.nii.gz -uthr 0 -abs -bin tmp_diff_mask_prior-.nii.gz
-	vcheck_mask T1.nii.gz tmp_diff_mask_prior+.nii.gz vcheck_diff_skull_strip_prior+.png diff.prior+
-	vcheck_mask T1.nii.gz tmp_diff_mask_prior-.nii.gz vcheck_diff_skull_strip_prior-.png diff.prior-
-	Do_cmd rm tmp_diff_mask_prior?.nii.gz
-fi
-
-## Change the working directory ----------------------------------
+## Deoblique
+Do_cmd 3drefit -deoblique ${anat_dir}/${T1w}.nii.gz
+# Bias Field Correction (N4)
+Do_cmd N4BiasFieldCorrection -d 3 -i ${anat_dir}/${T1w}.nii.gz -o ${anat_dir}/${T1w}_bc.nii.gz
+Do_cmd mri_convert --in_type nii ${anat_dir}/${T1w}.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
 Do_cmd popd
 
-## Clean up 
-for (( n=1; n <= ${num_scans}; n++ )); do
-	Do_cmd rm -f ${SUBJECTS_DIR}/${subject}/mri/orig/00${n}.mgz
-done
+## DO skullstriping in FS, FSL-BET
+Do_cmd mkdir -p ${anat_dir}/mask
+if [ ${do_skullstrip} = true ]; then
+	## 3.1 FS autorecon1 - skull stripping 
+	echo "Auto reconstruction stage in Freesurfer (Take half hour ...)"
+	if [ ${gcut} = 'true' ]; then
+		Do_cmd recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -no-isrunning -noappend -gcut 
+	else
+		Do_cmd recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -no-isrunning -noappend
+	fi
+	Do_cmd cp ${SUBJECTS_DIR}/${subject}/mri/brainmask.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.fsinit.mgz
 
+	## generate the registration (FS - original)
+	echo "Generate the registration file FS to original (rawavg) space ..."
+	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/${subject}/mri/brain.mgz --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --noedit --reg ${anat_dir}/reg/xfm_fs_To_rawavg.reg --fslregout ${anat_dir}/reg/xfm_fs_To_rawavg.FSL.mat --regheader
+
+	## Generate brain mask in mask directory
+	## Change the working directory ----------------------------------
+	Do_cmd pushd ${anat_dir}/mask
+
+	## 3.2 Do other processing in mask directory (rawavg, the first T1w space)
+	echo "Convert FS brain mask to original space (orientation is the same as the first input T1w)..."
+	Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --reg ${anat_dir}/reg/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/${subject}/mri/T1.mgz --o T1.nii.gz
+	Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --reg ${anat_dir}/reg/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/${subject}/mri/brainmask.mgz --o brain_fs.nii.gz
+	Do_cmd fslmaths brain_fs.nii.gz -abs -bin brain_mask_fs.nii.gz
+
+	## 3.3 BET using tight and loose parameter
+	echo "Simply register the T1 image to the MNI152 standard space ..."
+	Do_cmd flirt -in T1.nii.gz -ref ${template_head} -out tmp_head_fs2standard.nii.gz -omat tmp_head_fs2standard.mat -bins 256 -cost corratio 	-searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 12  -interp trilinear
+	Do_cmd convert_xfm -omat tmp_standard2head_fs.mat -inverse tmp_head_fs2standard.mat
+
+	echo "Perform a tight brain extraction ..."
+	Do_cmd bet tmp_head_fs2standard.nii.gz tmp.nii.gz -f ${bet_thr_tight} -m
+	Do_cmd fslmaths tmp_mask.nii.gz -mas ${template_init_mask} tmp_mask.nii.gz
+	Do_cmd flirt -in tmp_mask.nii.gz -applyxfm -init tmp_standard2head_fs.mat -out brain_mask_fsl_tight.nii.gz -paddingsize 0.0 -interp 	nearestneighbour -ref T1.nii.gz
+	Do_cmd fslmaths brain_mask_fs.nii.gz -add brain_mask_fsl_tight.nii.gz -bin brain_brain_fs+.nii.gz
+	Do_cmd fslmaths T1.nii.gz -mas brain_mask_fsl_tight.nii.gz brain_fsl_tight.nii.gz
+	Do_cmd fslmaths T1.nii.gz -mas brain_brain_fs+.nii.gz brain_fs+.nii.gz
+	Do_cmd rm -f tmp.nii.gz
+	Do_cmd 3dresample -master T1.nii.gz -inset brain_fs+.nii.gz -prefix tmp.nii.gz
+	Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/${subject}/mri/brain_fs+.mgz
+	Do_cmd mri_mask ${SUBJECTS_DIR}/${subject}/mri/T1.mgz ${SUBJECTS_DIR}/${subject}/mri/brain_fs+.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.	tight.mgz
+
+	echo "Perform a loose brain extraction ..."
+	Do_cmd bet tmp_head_fs2standard.nii.gz tmp.nii.gz -f ${bet_thr_loose} -m
+	Do_cmd fslmaths tmp_mask.nii.gz -mas ${template_init_mask} tmp_mask.nii.gz
+	Do_cmd flirt -in tmp_mask.nii.gz -applyxfm -init tmp_standard2head_fs.mat -out brain_mask_fsl_loose.nii.gz -paddingsize 0.0 -interp 	nearestneighbour -ref T1.nii.gz
+	Do_cmd fslmaths brain_mask_fs.nii.gz -mul brain_mask_fsl_loose.nii.gz -bin brain_brain_fs-.nii.gz
+	Do_cmd fslmaths T1.nii.gz -mas brain_mask_fsl_loose.nii.gz brain_fsl_loose.nii.gz
+	Do_cmd fslmaths T1.nii.gz -mas brain_brain_fs-.nii.gz brain_fs-.nii.gz
+	Do_cmd rm -f tmp.nii.gz
+	Do_cmd 3dresample -master T1.nii.gz -inset brain_fs-.nii.gz -prefix tmp.nii.gz
+	Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/${subject}/mri/brain_fs-.mgz
+	Do_cmd mri_mask ${SUBJECTS_DIR}/${subject}/mri/T1.mgz ${SUBJECTS_DIR}/${subject}/mri/brain_fs-.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.	loose.mgz
+
+	## 4. Quality check
+	#FS BET
+	vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz brain_mask_fs.nii.gz vcheck_skull_strip_fs.png fs
+
+	#FS/FSL tight BET
+	vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz brain_mask_fs+.nii.gz vcheck_skull_strip_fs+.png fs+
+	Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_mask_fs+.nii.gz -abs -bin diff_mask_fs+.nii.gz
+	vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz diff_mask_fs+.nii.gz vcheck_diff_skull_strip_fs+.png diff.fs+
+
+	#FS/FSL loose BET
+	vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz brain_mask_fs-.nii.gz vcheck_skull_strip_fs-.png fs-
+	Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_mask_fs-.nii.gz -abs -bin diff_mask_fs-.nii.gz
+	vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz diff_mask_fs-.nii.gz vcheck_diff_skull_strip_fs-.png diff.fs-
+
+	## Change the working directory ----------------------------------
+	Do_cmd popd
+
+fi # end if [ ${do_skullstrip} = true ]
+
+Do_cmd pushd ${anat_dir}/mask
+
+## 3.4 make sure that prior mask is in the same raw space
+if [[ ! -z ${prior_mask} ]] && [[ ! -z ${prior_anat} ]]; then
+	Do_cmd ln -s ${prior_mask} prior_mask_link.nii.gz
+	Do_cmd ln -s ${prior_anat} prior_anat_link.nii.gz
+    Do_cmd flirt -in ${prior_anat} -ref ${anat_dir}/${T1w}_bc.nii.gz -omat ${anat_dir}/mask/xfm_prior_mask_To_T1.mat -dof 6
+	Do_cmd flirt -in ${prior_mask} -ref ${anat_dir}/${T1w}_bc.nii.gz -applyxfm -init ${anat_dir}/mask/xfm_prior_mask_To_T1.mat -out ${anat_dir}/mask/brain_mask_prior.nii.gz -interp nearestneighbour
+	Do_cmd fslmaths ${anat_dir}/${T1w}_bc.nii.gz -mas ${anat_dir}/mask/brain_mask_prior.nii.gz ${anat_dir}/${T1w}_bc_brain_prior.nii.gz
+	
+	## vcheck prior mask
+    vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz brain_mask_prior.nii.gz vcheck_skull_strip_prior.png prior
+	if [ ${do_skullstrip} = true ]; then
+    	Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_mask_prior.nii.gz  diff_mask_prior-fs.nii.gz
+		Do_cmd fslmaths diff_mask_prior.nii.gz -thr 0 -abs -bin tmp_diff_mask_prior+.nii.gz
+		Do_cmd fslmaths diff_mask_prior.nii.gz -uthr 0 -abs -bin tmp_diff_mask_prior-.nii.gz
+		vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz tmp_diff_mask_prior+.nii.gz vcheck_diff_skull_strip_prior+.png diff.prior+
+		vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz tmp_diff_mask_prior-.nii.gz vcheck_diff_skull_strip_prior-.png diff.prior-
+		Do_cmd rm tmp_diff_mask_prior+.nii.gz tmp_diff_mask_prior-.nii.gz
+	fi
+	
+fi
+
+## specify the init brain mask
+if [[ ! -z ${prior_mask} ]] && [[ ! -z ${prior_anat} ]]; then
+	Do_cmd ln -s brain_mask_prior.nii.gz brain_mask_init.nii.gz
+else
+	Do_cmd ln -s brain_mask_fs.nii.gz brain_mask_init.nii.gz
+fi
+
+Do_cmd popd
+
+## initial brain mask
+
+## Clean up 
+Do_cmd rm -f ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
+
+## Get back to the directory
 Do_cmd cd ${cwd}
