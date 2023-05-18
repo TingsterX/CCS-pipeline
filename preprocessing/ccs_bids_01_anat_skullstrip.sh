@@ -15,7 +15,6 @@ Usage: ${0}
 	--ref_head=[template head ], default=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz
 	--ref_init_mask=[initial template mask], default=${FSLDIR}/data/standard/MNI152_T1_1mm_first_brain_mask.nii.gz
 	--anat_dir=<anatomical directory>, e.g. base_dir/subID/anat or base_dir/subID/sesID/anat
-	--SUBJECTS_DIR=<FreeSurfer SUBJECTS_DIR>, e.g. base_dir/subID/sesID
 	--subject=<subject ID>, e.g. sub001 
 	--num_scans=[number of scans], default=1
 	--T1w_name=[T1w name], default=T1w
@@ -55,7 +54,6 @@ source ${CCSPIPELINE_DIR}/global/utilities.sh
 template_head=`getopt1 "--ref_head" $@`
 template_init_mask=`getopt1 "--ref_init_mask" $@`
 anat_dir=`getopt1 "--anat_dir" $@`
-SUBJECTS_DIR=`getopt1 "--SUBJECTS_DIR" $@`
 subject=`getopt1 "--subject" $@`
 T1w=`getopt1 "--T1w_name" $@`
 num_scans=`getopt1 "--num_scans" $@`
@@ -93,7 +91,6 @@ Title "anat preprocessing step 1: brain extraction"
 Note "template_head=       ${template_head}"
 Note "template_init_mask=  ${template_init_mask}"
 Note "anat_dir=            ${anat_dir}"
-Note "SUBJECTS_DIR=        ${SUBJECTS_DIR}"
 Note "subject=             ${subject}"
 Note "T1w_name             ${T1w}"
 Note "num_scans=           ${num_scans}"
@@ -147,10 +144,8 @@ T1w_scans_list=""
 for (( n=1; n <= ${num_scans}; n++ )); do
 	if [[ "${do_denoise}" = "true" ]]; then
 		T1w_scans_list="${T1w_scans_list} ${T1w}_${n}_denoise.nii.gz"
-		#Do_cmd mri_convert --in_type nii ${anat_dir}/${T1w}_${n}_denoise.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/00${n}.mgz
 	else
 		T1w_scans_list="${T1w_scans_list} ${T1w}_${n}.nii.gz"
-		#Do_cmd mri_convert --in_type nii ${anat_dir}/${T1w}_${n}.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/00${n}.mgz
 	fi
 done
 if [ ${num_scans} -gt 1 ]; then
@@ -173,23 +168,24 @@ if [ ${do_skullstrip} = true ]; then
 	# Input of the FS, FSL-BET
 	## FS stage-1 (average T1w images if there are more than one)
 	echo "Preparing data for ${sub} in freesurfer ..."
-	Do_cmd mkdir -p ${SUBJECTS_DIR}/${subject}/mri/orig
-	Do_cmd mri_convert --in_type nii ${anat_dir}/${T1w}.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
-	## 3.1 FS autorecon1 - skull stripping 
+	Do_cmd mkdir -p ${anat_dir}/mask/FS/mri/orig
+	Do_cmd mri_convert --in_type nii ${anat_dir}/${T1w}_bc.nii.gz ${anat_dir}/mask/FS/mri/orig/001.mgz
+	## 3.1 FS autorecon1 - skull stripping
+	SUBJECTS_DIR=${anat_dir}/mask
 	echo "Auto reconstruction stage in Freesurfer (Take half hour ...)"
 	if [ ${gcut} = 'true' ]; then
-		Do_cmd recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -no-isrunning -noappend -gcut 
+		Do_cmd recon-all -s FS -autorecon1 -notal-check -clean-bm -no-isrunning -noappend -gcut 
 	else
-		Do_cmd recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -no-isrunning -noappend
+		Do_cmd recon-all -s FS -autorecon1 -notal-check -clean-bm -no-isrunning -noappend
 	fi
-	Do_cmd cp ${SUBJECTS_DIR}/${subject}/mri/brainmask.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.fsinit.mgz
-
+	
 	## generate the registration (FS - original)
 	echo "Generate the registration file FS to original (rawavg) space ..."
-	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/${subject}/mri/brain.mgz --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --noedit --reg ${anat_dir}/reg/xfm_fs_To_rawavg.reg --fslregout ${anat_dir}/reg/xfm_fs_To_rawavg.FSL.mat --regheader
-	
-	## Clean up 
-	Do_cmd rm -f ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
+	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/${subject}/mri/brain.mgz --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --noedit --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --fslregout ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.FSL.mat --regheader
+
+	## Clean up
+	Do_cmd rm -rf ${anat_dir}/mask/FS/stats ${anat_dir}/mask/FS/trash ${anat_dir}/mask/FS/touch ${anat_dir}/mask/FS/tmp ${anat_dir}/mask/FS/surf ${anat_dir}/mask/FS/src ${anat_dir}/mask/FS/bem ${anat_dir}/mask/FS/label
+	Do_cmd rm -rf ${anat_dir}/mask/FS/mri/orig/001.mgz 
 
 	## Generate brain mask in mask directory
 	## Change the working directory ----------------------------------
@@ -197,8 +193,8 @@ if [ ${do_skullstrip} = true ]; then
 
 	## 3.2 Do other processing in mask directory (rawavg, the first T1w space)
 	echo "Convert FS brain mask to original space (orientation is the same as the first input T1w)..."
-	Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --reg ${anat_dir}/reg/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/${subject}/mri/T1.mgz --o T1.nii.gz
-	Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --reg ${anat_dir}/reg/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/${subject}/mri/brainmask.mgz --o brain_fs.nii.gz
+	Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/${subject}/mri/T1.mgz --o T1.nii.gz
+	Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/${subject}/mri/brainmask.mgz --o brain_fs.nii.gz
 	Do_cmd fslmaths brain_fs.nii.gz -abs -bin brain_mask_fs.nii.gz
 
 	## 3.3 BET using tight and loose parameter
