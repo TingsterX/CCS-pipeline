@@ -142,10 +142,8 @@ if [[ "${do_denoise}" = "true" ]]; then
     	fi
 	done
 fi
-## 2. FS stage-1 (average T1w images if there are more than one)
-echo "Preparing data for ${sub} in freesurfer ..."
-Do_cmd mkdir -p ${SUBJECTS_DIR}/${subject}/mri/orig
-Do_cmd pushd ${SUBJECTS_DIR}/${subject}/mri/orig
+
+## 2. Average multiple T1 images and run bias field correction
 T1w_scans_list=""
 for (( n=1; n <= ${num_scans}; n++ )); do
 	if [[ "${do_denoise}" = "true" ]]; then
@@ -158,20 +156,26 @@ for (( n=1; n <= ${num_scans}; n++ )); do
 done
 if [ ${num_scans} -gt 1 ]; then
 	Do_cmd mri_robust_template --mov ${T1w_scans_list} --average 1 --template ${anat_dir}/${T1w}.nii.gz --satit --inittp 1 --fixtp --noit --iscale --iscaleout ${anat_dir}/reg/${T1w_scans_list//.nii.gz/-iscale.txt} --subsample 200 --lta ${anat_dir}/reg/${T1w_scans_list//.nii.gz/.lta}
+	for T1w_scan in ${T1w_scans_list}; do
+		Do_cmd lta_convert --inlat ${T1w_scan//.nii.gz/.lta} --outfsl ${T1w_scan//.nii.gz/.mat}
+	done
 else
-	cp -L ${anat_dir}/${T1w}_1.nii.gz ${anat_dir}/${T1w}.nii.gz
+	Do_cmd cp -L ${anat_dir}/${T1w}_1.nii.gz ${anat_dir}/${T1w}.nii.gz
 fi
-
 ## Deoblique
 Do_cmd 3drefit -deoblique ${anat_dir}/${T1w}.nii.gz
 # Bias Field Correction (N4)
 Do_cmd N4BiasFieldCorrection -d 3 -i ${anat_dir}/${T1w}.nii.gz -o ${anat_dir}/${T1w}_bc.nii.gz
-Do_cmd mri_convert --in_type nii ${anat_dir}/${T1w}.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
-Do_cmd popd
+
 
 ## DO skullstriping in FS, FSL-BET
 Do_cmd mkdir -p ${anat_dir}/mask
 if [ ${do_skullstrip} = true ]; then
+	# Input of the FS, FSL-BET
+	## FS stage-1 (average T1w images if there are more than one)
+	echo "Preparing data for ${sub} in freesurfer ..."
+	Do_cmd mkdir -p ${SUBJECTS_DIR}/${subject}/mri/orig
+	Do_cmd mri_convert --in_type nii ${anat_dir}/${T1w}.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
 	## 3.1 FS autorecon1 - skull stripping 
 	echo "Auto reconstruction stage in Freesurfer (Take half hour ...)"
 	if [ ${gcut} = 'true' ]; then
@@ -184,6 +188,9 @@ if [ ${do_skullstrip} = true ]; then
 	## generate the registration (FS - original)
 	echo "Generate the registration file FS to original (rawavg) space ..."
 	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/${subject}/mri/brain.mgz --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --noedit --reg ${anat_dir}/reg/xfm_fs_To_rawavg.reg --fslregout ${anat_dir}/reg/xfm_fs_To_rawavg.FSL.mat --regheader
+	
+	## Clean up 
+	Do_cmd rm -f ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
 
 	## Generate brain mask in mask directory
 	## Change the working directory ----------------------------------
@@ -250,6 +257,7 @@ if [[ ! -z ${prior_mask} ]] && [[ ! -z ${prior_anat} ]]; then
 	Do_cmd ln -s ${prior_mask} prior_mask_link.nii.gz
 	Do_cmd ln -s ${prior_anat} prior_anat_link.nii.gz
     Do_cmd flirt -in ${prior_anat} -ref ${anat_dir}/${T1w}_bc.nii.gz -omat ${anat_dir}/mask/xfm_prior_mask_To_T1.mat -dof 6
+	Do_cmd convert_xfm -omat ${anat_dir}/mask/xfm_T1_To_prior_mask.mat  -inverse ${anat_dir}/mask/xfm_prior_mask_To_T1.mat 
 	Do_cmd flirt -in ${prior_mask} -ref ${anat_dir}/${T1w}_bc.nii.gz -applyxfm -init ${anat_dir}/mask/xfm_prior_mask_To_T1.mat -out ${anat_dir}/mask/brain_mask_prior.nii.gz -interp nearestneighbour
 	Do_cmd fslmaths ${anat_dir}/${T1w}_bc.nii.gz -mas ${anat_dir}/mask/brain_mask_prior.nii.gz ${anat_dir}/${T1w}_bc_brain_prior.nii.gz
 	
@@ -262,10 +270,8 @@ if [[ ! -z ${prior_mask} ]] && [[ ! -z ${prior_anat} ]]; then
 		vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz tmp_diff_mask_prior+.nii.gz vcheck_diff_skull_strip_prior+.png diff.prior+
 		vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz tmp_diff_mask_prior-.nii.gz vcheck_diff_skull_strip_prior-.png diff.prior-
 		Do_cmd rm tmp_diff_mask_prior+.nii.gz tmp_diff_mask_prior-.nii.gz
-	fi
-	
+	fi	
 fi
-
 ## specify the init brain mask
 if [[ ! -z ${prior_mask} ]] && [[ ! -z ${prior_anat} ]]; then
 	Do_cmd ln -s brain_mask_prior.nii.gz brain_mask_init.nii.gz
@@ -274,11 +280,6 @@ else
 fi
 
 Do_cmd popd
-
-## initial brain mask
-
-## Clean up 
-Do_cmd rm -f ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
 
 ## Get back to the directory
 Do_cmd cd ${cwd}
