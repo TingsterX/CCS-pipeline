@@ -2,9 +2,8 @@
 
 ##########################################################################################################################
 ## CCS SCRIPT TO PREPROCESS THE ANATOMICAL SCAN (INTEGRATE AFNI/FSL/FREESURFER/ANTS)
-## Revised from Xi-Nian Zuo https://github.com/zuoxinian/CCS
-## Ting Xu, Denoise using ANTS, if only one T1w, the name has to be T1w1.nii.gz, BIDS format input
-## Use acpc aligned space as the main native space 
+## Revised from https://github.com/zuoxinian/CCS
+## Ting Xu, Denoise using ANTS; T1w and masks are all in raw space
 ##########################################################################################################################
 
 Usage() {
@@ -90,7 +89,7 @@ fi
 #set -x 
 
 ## Show parameters in log file
-Title "anat preprocessing step 1: brain extraction and ACPC alignment"
+Title "anat preprocessing step 1: brain extraction"
 Note "template_head=       ${template_head}"
 Note "template_init_mask=  ${template_init_mask}"
 Note "anat_dir=            ${anat_dir}"
@@ -126,9 +125,9 @@ vcheck_mask() {
 
 ## ======================================================
 ## 
-echo --------------------------------------
-echo !!!! PREPROCESSING ANATOMICAL SCAN!!!!
-echo --------------------------------------
+echo ----------------------------------------------------
+echo >>> PREPROCESSING ANATOMICAL SCAN - skull stripping
+echo ----------------------------------------------------
 cwd=$( pwd )
 Do_cmd mkdir ${anat_dir}/reg
 
