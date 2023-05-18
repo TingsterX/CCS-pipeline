@@ -181,7 +181,7 @@ if [ ${do_skullstrip} = true ]; then
 	
 	## generate the registration (FS - original)
 	echo "Generate the registration file FS to original (rawavg) space ..."
-	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/${subject}/mri/brain.mgz --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --noedit --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --fslregout ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.FSL.mat --regheader
+	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/FS/mri/brain.mgz --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --noedit --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --fslregout ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.FSL.mat --regheader
 
 	## Clean up
 	Do_cmd rm -rf ${anat_dir}/mask/FS/stats ${anat_dir}/mask/FS/trash ${anat_dir}/mask/FS/touch ${anat_dir}/mask/FS/tmp ${anat_dir}/mask/FS/surf ${anat_dir}/mask/FS/src ${anat_dir}/mask/FS/bem ${anat_dir}/mask/FS/label
@@ -193,8 +193,8 @@ if [ ${do_skullstrip} = true ]; then
 
 	## 3.2 Do other processing in mask directory (rawavg, the first T1w space)
 	echo "Convert FS brain mask to original space (orientation is the same as the first input T1w)..."
-	Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/${subject}/mri/T1.mgz --o T1.nii.gz
-	Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/${subject}/mri/brainmask.mgz --o brain_fs.nii.gz
+	Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/FS/mri/T1.mgz --o T1.nii.gz
+	Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/FS/mri/brainmask.mgz --o brain_fs.nii.gz
 	Do_cmd fslmaths brain_fs.nii.gz -abs -bin brain_mask_fs.nii.gz
 
 	## 3.3 BET using tight and loose parameter
@@ -211,8 +211,8 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd fslmaths T1.nii.gz -mas brain_brain_fs+.nii.gz brain_fs+.nii.gz
 	Do_cmd rm -f tmp.nii.gz
 	Do_cmd 3dresample -master T1.nii.gz -inset brain_fs+.nii.gz -prefix tmp.nii.gz
-	Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/${subject}/mri/brain_fs+.mgz
-	Do_cmd mri_mask ${SUBJECTS_DIR}/${subject}/mri/T1.mgz ${SUBJECTS_DIR}/${subject}/mri/brain_fs+.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.	tight.mgz
+	Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz
+	Do_cmd mri_mask ${SUBJECTS_DIR}/FS/mri/T1.mgz ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz ${SUBJECTS_DIR}/FS/mri/brainmask.	tight.mgz
 
 	echo "Perform a loose brain extraction ..."
 	Do_cmd bet tmp_head_fs2standard.nii.gz tmp.nii.gz -f ${bet_thr_loose} -m
@@ -223,8 +223,8 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd fslmaths T1.nii.gz -mas brain_brain_fs-.nii.gz brain_fs-.nii.gz
 	Do_cmd rm -f tmp.nii.gz
 	Do_cmd 3dresample -master T1.nii.gz -inset brain_fs-.nii.gz -prefix tmp.nii.gz
-	Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/${subject}/mri/brain_fs-.mgz
-	Do_cmd mri_mask ${SUBJECTS_DIR}/${subject}/mri/T1.mgz ${SUBJECTS_DIR}/${subject}/mri/brain_fs-.mgz ${SUBJECTS_DIR}/${subject}/mri/brainmask.	loose.mgz
+	Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz
+	Do_cmd mri_mask ${SUBJECTS_DIR}/FS/mri/T1.mgz ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz ${SUBJECTS_DIR}/FS/mri/brainmask.	loose.mgz
 
 	## 4. Quality check
 	#FS BET
