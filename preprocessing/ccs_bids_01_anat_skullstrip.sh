@@ -134,30 +134,32 @@ Do_cmd cd ${anat_dir}
 if [[ "${do_denoise}" = "true" ]]; then
   	for (( n=1; n <= ${num_scans}; n++ )); do
     	if [ ! -e ${anat_dir}/${T1w}_${n}_denoise.nii.gz ]; then
-    		Do_cmd DenoiseImage -i ${anat_dir}/${T1w}_${n}.nii.gz -o ${anat_dir}/${T1w}_${n}_denoise.nii.gz -d 3
+    		Do_cmd DenoiseImage -i ${anat_dir}/${img} -o ${anat_dir}/${T1w}_${n}_denoise.nii.gz -d 3
     	fi
 	done
 fi
 
 ## 2. Average multiple T1 images and run bias field correction
-T1w_scans_list=""
-for (( n=1; n <= ${num_scans}; n++ )); do
-	if [[ "${do_denoise}" = "true" ]]; then
-		T1w_scans_list="${T1w_scans_list} ${T1w}_${n}_denoise.nii.gz"
-	else
-		T1w_scans_list="${T1w_scans_list} ${T1w}_${n}.nii.gz"
-	fi
-done
-if [ ${num_scans} -gt 1 ]; then
-	Do_cmd mri_robust_template --mov ${T1w_scans_list} --average 1 --template ${anat_dir}/${T1w}.nii.gz --satit --inittp 1 --fixtp --noit --iscale --iscaleout ${anat_dir}/reg/${T1w_scans_list//.nii.gz/-iscale.txt} --subsample 200 --lta ${anat_dir}/reg/${T1w_scans_list//.nii.gz/.lta}
-	for T1w_scan in ${T1w_scans_list}; do
-		Do_cmd lta_convert --inlat ${T1w_scan//.nii.gz/.lta} --outfsl ${T1w_scan//.nii.gz/.mat}
-	done
-else
-	Do_cmd cp -L ${anat_dir}/${T1w}_1.nii.gz ${anat_dir}/${T1w}.nii.gz
+if [ ! -e ${anat_dir}/${T1w}.nii.gz ]; then
+    T1w_scans_list=""
+    for (( n=1; n <= ${num_scans}; n++ )); do
+    	if [[ "${do_denoise}" = "true" ]]; then
+    		T1w_scans_list="${T1w_scans_list} ${T1w}_${n}_denoise.nii.gz"
+    	else
+    		T1w_scans_list="${T1w_scans_list} ${T1w}_${n}.nii.gz"
+    	fi
+    done
+    if [ ${num_scans} -gt 1 ]; then
+    	Do_cmd mri_robust_template --mov ${T1w_scans_list} --average 1 --template ${anat_dir}/${T1w}.nii.gz --satit --inittp 1 --fixtp --noit --iscale     --iscaleout ${anat_dir}/reg/${T1w_scans_list//.nii.gz/-iscale.txt} --subsample 200 --lta ${anat_dir}/reg/${T1w_scans_list//.nii.gz/.lta}
+    	for T1w_scan in ${T1w_scans_list}; do
+    		Do_cmd lta_convert --inlat ${T1w_scan//.nii.gz/.lta} --outfsl ${T1w_scan//.nii.gz/.mat}
+    	done
+    else
+    	Do_cmd cp -L ${anat_dir}/${T1w}_1.nii.gz ${anat_dir}/${T1w}.nii.gz
+    fi
+    ## Deoblique
+    Do_cmd 3drefit -deoblique ${anat_dir}/${T1w}.nii.gz
 fi
-## Deoblique
-Do_cmd 3drefit -deoblique ${anat_dir}/${T1w}.nii.gz
 # Bias Field Correction (N4)
 Do_cmd N4BiasFieldCorrection -d 3 -i ${anat_dir}/${T1w}.nii.gz -o ${anat_dir}/${T1w}_bc.nii.gz
 
