@@ -124,7 +124,7 @@ vcheck_mask() {
 ## ======================================================
 ## 
 echo ----------------------------------------------------
-echo >>> PREPROCESSING ANATOMICAL SCAN - skull stripping
+echo PREPROCESSING ANATOMICAL SCAN - skull stripping
 echo ----------------------------------------------------
 cwd=$( pwd )
 Do_cmd mkdir ${anat_dir}/reg
