@@ -66,6 +66,7 @@ do_skullstrip=`getopt1 "--do_skullstrip" $@`
 ## default parameter
 template_head=`defaultopt ${template_head} ${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz`
 template_init_mask=`defaultopt ${template_init_mask} ${FSLDIR}/data/standard/MNI152_T1_1mm_first_brain_mask.nii.gz`
+num_scans=`defaultopt ${num_scans} 1`
 T1w=`defaultopt ${T1w} T1w`
 do_gcut=`defaultopt ${do_gcut} true`
 do_denoise=`defaultopt ${do_denoise} true`
