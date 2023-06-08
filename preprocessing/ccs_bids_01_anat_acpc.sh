@@ -15,7 +15,7 @@ Usage: ${0}
 	--ref_head=[template head used for ACPC alignment], default=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz
 	--ref_brain=[template brain used for ACPC alignment], default=${FSLDIR}/data/standard/MNI152_T1_1mm_brain.nii.gz
 	--anat_dir=<anatomical directory>, e.g. base_dir/subID/anat or base_dir/subID/sesID/anat
-	--SUBJECTS_DIR=<FreeSurfer SUBJECTS_DIR>, e.g. base_dir/subID/sesID
+	--SUBJECTS_DIR=<FreeSurfer SUBJECTS_DIR>, default=anat_dir
 	--subject=<subject ID>, e.g. sub001 
 	--T1w_name=[T1w name], default=T1w
 	--mask_select=[fs/fs+/fs-/prior], default=fs
@@ -54,9 +54,15 @@ subject=`getopt1 "--subject" $@`
 T1w=`getopt1 "--T1w_name" $@`
 mask_select=`getopt1 "--mask_select" $@`
 
+if [ -z ${anat_dir} ] || [ -z ${subject} ]; then
+	Usage
+	exit 1
+fi
+
 ## default parameter
 template_head=`defaultopt ${template_head} ${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz`
 template_mask=`defaultopt ${template_init_mask} ${FSLDIR}/data/standard/MNI152_T1_1mm_brain.nii.gz`
+SUBJECTS_DIR=`defaultopt ${SUBJECTS_DIR} ${anat_dir}`
 T1w=`defaultopt ${T1w} T1w`
 mask_select=`defaultopt ${mask_select} fs`
 
@@ -85,7 +91,7 @@ vcheck_acpc() {
     Do_cmd 3dcalc -a ${underlay} -expr "step(x)+step(y)+step(z)" -prefix tmp_acpc_mask_${underlay}.nii.gz
 	Do_cmd overlay 1 1 ${underlay} -a tmp_acpc_mask_${underlay}.nii.gz 1 4 tmp_rendered_mask.nii.gz
 	Do_cmd slicer tmp_rendered_mask.nii.gz -a ${figout} -L
-	Do_cmd convert -font helvetica -fill white -pointsize 36 -draw "text 30,50 '$title'" ${figout} ${figout}
+	#Do_cmd convert -font helvetica -fill white -pointsize 36 -draw "text 30,50 '$title'" ${figout} ${figout}
 	Do_cmd rm -f tmp_rendered_mask.nii.gz tmp_acpc_mask_${underlay}.nii.gz
 }
 
