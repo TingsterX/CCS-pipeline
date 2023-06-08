@@ -156,7 +156,7 @@ if [ ! -e ${anat_dir}/${T1w}.nii.gz ]; then
     		Do_cmd lta_convert --inlat ${T1w_scan//.nii.gz/.lta} --outfsl ${T1w_scan//.nii.gz/.mat}
     	done
     else
-    	Do_cmd cp -L ${anat_dir}/${T1w}_1.nii.gz ${anat_dir}/${T1w}.nii.gz
+    	Do_cmd cp -L ${anat_dir}/${T1w_scans_list} ${anat_dir}/${T1w}.nii.gz
     fi
     ## Deoblique
     Do_cmd 3drefit -deoblique ${anat_dir}/${T1w}.nii.gz
