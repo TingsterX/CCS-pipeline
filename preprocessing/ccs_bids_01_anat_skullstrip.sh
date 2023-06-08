@@ -135,7 +135,7 @@ Do_cmd cd ${anat_dir}
 if [[ "${do_denoise}" = "true" ]]; then
   	for (( n=1; n <= ${num_scans}; n++ )); do
     	if [ ! -e ${anat_dir}/${T1w}_${n}_denoise.nii.gz ]; then
-    		Do_cmd DenoiseImage -i ${anat_dir}/${img} -o ${anat_dir}/${T1w}_${n}_denoise.nii.gz -d 3
+    		Do_cmd DenoiseImage -i ${anat_dir}/${T1w}_${n}.nii.gz -o ${anat_dir}/${T1w}_${n}_denoise.nii.gz -d 3
     	fi
 	done
 fi
