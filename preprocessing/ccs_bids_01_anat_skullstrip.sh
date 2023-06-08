@@ -186,7 +186,8 @@ if [ ${do_skullstrip} = true ]; then
 	
 	## generate the registration (FS - original)
 	echo "Generate the registration file FS to original (rawavg) space ..."
-	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/FS/mri/brain.mgz --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --noedit --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --fslregout ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.FSL.mat --regheader
+	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/FS/mri/T1.mgz --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --noedit --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --fslregout ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.FSL.mat --regheader --s ${subject} 
+	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/FS/mri/T1.mgz --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --ltaout-inv --ltaout ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg --fslregout ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.FSL.mat
 
 	## Clean up
 	Do_cmd rm -rf ${anat_dir}/mask/FS/stats ${anat_dir}/mask/FS/trash ${anat_dir}/mask/FS/touch ${anat_dir}/mask/FS/tmp ${anat_dir}/mask/FS/surf ${anat_dir}/mask/FS/src ${anat_dir}/mask/FS/bem ${anat_dir}/mask/FS/label
@@ -203,7 +204,7 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd fslmaths brain_fs.nii.gz -abs -bin brain_mask_fs.nii.gz
 
 	## 3.3 BET using tight and loose parameter
-	echo "Simply register the T1 image to the MNI152 standard space ..."
+	echo "Simply register the T1 image to the standard space ..."
 	Do_cmd flirt -in T1.nii.gz -ref ${template_head} -out tmp_head_fs2standard.nii.gz -omat tmp_head_fs2standard.mat -bins 256 -cost corratio 	-searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 12  -interp trilinear
 	Do_cmd convert_xfm -omat tmp_standard2head_fs.mat -inverse tmp_head_fs2standard.mat
 
@@ -214,10 +215,11 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd fslmaths brain_mask_fs.nii.gz -add brain_mask_fsl_tight.nii.gz -bin brain_brain_fs+.nii.gz
 	Do_cmd fslmaths T1.nii.gz -mas brain_mask_fsl_tight.nii.gz brain_fsl_tight.nii.gz
 	Do_cmd fslmaths T1.nii.gz -mas brain_brain_fs+.nii.gz brain_fs+.nii.gz
-	Do_cmd rm -f tmp.nii.gz
-	Do_cmd 3dresample -master T1.nii.gz -inset brain_fs+.nii.gz -prefix tmp.nii.gz
-	Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz
-	Do_cmd mri_mask ${SUBJECTS_DIR}/FS/mri/T1.mgz ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz ${SUBJECTS_DIR}/FS/mri/brainmask.	tight.mgz
+	#Do_cmd rm -f tmp.nii.gz
+	#Do_cmd 3dresample -master T1.nii.gz -inset brain_fs+.nii.gz -prefix tmp.nii.gz
+	#Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz
+	Do_cmd mri_vol2vol --mov brain_fs+.nii.gz --targ ${SUBJECTS_DIR}/FS/mri/T1.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg --o ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz
+	Do_cmd mri_mask ${SUBJECTS_DIR}/FS/mri/T1.mgz ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz ${SUBJECTS_DIR}/FS/mri/brainmask.tight.mgz
 
 	echo "Perform a loose brain extraction ..."
 	Do_cmd bet tmp_head_fs2standard.nii.gz tmp.nii.gz -f ${bet_thr_loose} -m
@@ -226,10 +228,11 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd fslmaths brain_mask_fs.nii.gz -mul brain_mask_fsl_loose.nii.gz -bin brain_brain_fs-.nii.gz
 	Do_cmd fslmaths T1.nii.gz -mas brain_mask_fsl_loose.nii.gz brain_fsl_loose.nii.gz
 	Do_cmd fslmaths T1.nii.gz -mas brain_brain_fs-.nii.gz brain_fs-.nii.gz
-	Do_cmd rm -f tmp.nii.gz
-	Do_cmd 3dresample -master T1.nii.gz -inset brain_fs-.nii.gz -prefix tmp.nii.gz
-	Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz
-	Do_cmd mri_mask ${SUBJECTS_DIR}/FS/mri/T1.mgz ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz ${SUBJECTS_DIR}/FS/mri/brainmask.	loose.mgz
+	#Do_cmd rm -f tmp.nii.gz
+	#Do_cmd 3dresample -master T1.nii.gz -inset brain_fs-.nii.gz -prefix tmp.nii.gz
+	#Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz
+	Do_cmd mri_vol2vol --mov brain_fs-.nii.gz --targ ${SUBJECTS_DIR}/FS/mri/T1.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg --o ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz
+	Do_cmd mri_mask ${SUBJECTS_DIR}/FS/mri/T1.mgz ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz ${SUBJECTS_DIR}/FS/mri/brainmask.loose.mgz
 
 	## 4. Quality check
 	#FS BET
