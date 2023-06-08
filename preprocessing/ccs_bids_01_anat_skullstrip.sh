@@ -116,8 +116,6 @@ vcheck_mask() {
 	echo "----->> vcheck mask"
 	Do_cmd overlay 1 1 ${underlay} -a ${overlay} 1 1 tmp_rendered_mask.nii.gz
 	Do_cmd slicer tmp_rendered_mask.nii.gz -S 10 1200 ${figout}
-	Do_cmd title=${title}
-	Do_cmd convert -font helvetica -fill white -pointsize 36 -draw "text 30,50 '$title'" ${figout} ${figout}
 	Do_cmd rm -f tmp_rendered_mask.nii.gz
 }
 
@@ -156,7 +154,7 @@ if [ ! -e ${anat_dir}/${T1w}.nii.gz ]; then
     		Do_cmd lta_convert --inlat ${T1w_scan//.nii.gz/.lta} --outfsl ${T1w_scan//.nii.gz/.mat}
     	done
     else
-    	Do_cmd cp -L ${anat_dir}/${T1w_scans_list} ${anat_dir}/${T1w}.nii.gz
+    	Do_cmd cp -L ${anat_dir}/${T1w_scans_list/\ /} ${anat_dir}/${T1w}.nii.gz
     fi
     ## Deoblique
     Do_cmd 3drefit -deoblique ${anat_dir}/${T1w}.nii.gz
@@ -186,8 +184,13 @@ if [ ${do_skullstrip} = true ]; then
 	
 	## generate the registration (FS - original)
 	echo "Generate the registration file FS to original (rawavg) space ..."
-	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/FS/mri/T1.mgz --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --noedit --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --fslregout ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.FSL.mat --regheader --s ${subject} 
-	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/FS/mri/T1.mgz --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --ltaout-inv --ltaout ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg --fslregout ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.FSL.mat
+	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/FS/mri/T1.mgz --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --noedit --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --fslregout ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.FSL.mat --regheader --s FS 
+	## invert affine matrix: invert the FSL affine matrix and transfer back to FS format
+	Do_cmd convert_xfm -omat ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.FSL.mat -inverse ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.FSL.mat
+	Do_cmd tkregister2 --s FS --mov ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --targ ${SUBJECTS_DIR}/FS/mri/T1.mgz --fsl ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.FSL.mat --noedit --reg ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg
+	## Note: --ltaout-inv is not available for FS 5.3.0, but available for FS 7.3
+	## Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/FS/mri/T1.mgz --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --ltaout-inv --ltaout ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg 
+	
 
 	## Clean up
 	Do_cmd rm -rf ${anat_dir}/mask/FS/stats ${anat_dir}/mask/FS/trash ${anat_dir}/mask/FS/touch ${anat_dir}/mask/FS/tmp ${anat_dir}/mask/FS/surf ${anat_dir}/mask/FS/src ${anat_dir}/mask/FS/bem ${anat_dir}/mask/FS/label
@@ -212,12 +215,9 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd bet tmp_head_fs2standard.nii.gz tmp.nii.gz -f ${bet_thr_tight} -m
 	Do_cmd fslmaths tmp_mask.nii.gz -mas ${template_init_mask} tmp_mask.nii.gz
 	Do_cmd flirt -in tmp_mask.nii.gz -applyxfm -init tmp_standard2head_fs.mat -out brain_mask_fsl_tight.nii.gz -paddingsize 0.0 -interp 	nearestneighbour -ref T1.nii.gz
-	Do_cmd fslmaths brain_mask_fs.nii.gz -add brain_mask_fsl_tight.nii.gz -bin brain_brain_fs+.nii.gz
+	Do_cmd fslmaths brain_mask_fs.nii.gz -add brain_mask_fsl_tight.nii.gz -bin brain_mask_fs+.nii.gz
 	Do_cmd fslmaths T1.nii.gz -mas brain_mask_fsl_tight.nii.gz brain_fsl_tight.nii.gz
-	Do_cmd fslmaths T1.nii.gz -mas brain_brain_fs+.nii.gz brain_fs+.nii.gz
-	#Do_cmd rm -f tmp.nii.gz
-	#Do_cmd 3dresample -master T1.nii.gz -inset brain_fs+.nii.gz -prefix tmp.nii.gz
-	#Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz
+	Do_cmd fslmaths T1.nii.gz -mas brain_mask_fs+.nii.gz brain_fs+.nii.gz
 	Do_cmd mri_vol2vol --mov brain_fs+.nii.gz --targ ${SUBJECTS_DIR}/FS/mri/T1.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg --o ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz
 	Do_cmd mri_mask ${SUBJECTS_DIR}/FS/mri/T1.mgz ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz ${SUBJECTS_DIR}/FS/mri/brainmask.tight.mgz
 
@@ -225,28 +225,25 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd bet tmp_head_fs2standard.nii.gz tmp.nii.gz -f ${bet_thr_loose} -m
 	Do_cmd fslmaths tmp_mask.nii.gz -mas ${template_init_mask} tmp_mask.nii.gz
 	Do_cmd flirt -in tmp_mask.nii.gz -applyxfm -init tmp_standard2head_fs.mat -out brain_mask_fsl_loose.nii.gz -paddingsize 0.0 -interp 	nearestneighbour -ref T1.nii.gz
-	Do_cmd fslmaths brain_mask_fs.nii.gz -mul brain_mask_fsl_loose.nii.gz -bin brain_brain_fs-.nii.gz
+	Do_cmd fslmaths brain_mask_fs.nii.gz -mul brain_mask_fsl_loose.nii.gz -bin brain_mask_fs-.nii.gz
 	Do_cmd fslmaths T1.nii.gz -mas brain_mask_fsl_loose.nii.gz brain_fsl_loose.nii.gz
-	Do_cmd fslmaths T1.nii.gz -mas brain_brain_fs-.nii.gz brain_fs-.nii.gz
-	#Do_cmd rm -f tmp.nii.gz
-	#Do_cmd 3dresample -master T1.nii.gz -inset brain_fs-.nii.gz -prefix tmp.nii.gz
-	#Do_cmd mri_convert --in_type nii tmp.nii.gz ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz
+	Do_cmd fslmaths T1.nii.gz -mas brain_mask_fs-.nii.gz brain_fs-.nii.gz
 	Do_cmd mri_vol2vol --mov brain_fs-.nii.gz --targ ${SUBJECTS_DIR}/FS/mri/T1.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg --o ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz
 	Do_cmd mri_mask ${SUBJECTS_DIR}/FS/mri/T1.mgz ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz ${SUBJECTS_DIR}/FS/mri/brainmask.loose.mgz
 
 	## 4. Quality check
 	#FS BET
-	vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz brain_mask_fs.nii.gz vcheck_skull_strip_fs.png fs
+	Do_cmd vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz brain_mask_fs.nii.gz vcheck_skull_strip_fs.png fs
 
 	#FS/FSL tight BET
-	vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz brain_mask_fs+.nii.gz vcheck_skull_strip_fs+.png fs+
+	Do_cmd vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz brain_mask_fs+.nii.gz vcheck_skull_strip_fs+.png fs+
 	Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_mask_fs+.nii.gz -abs -bin diff_mask_fs+.nii.gz
-	vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz diff_mask_fs+.nii.gz vcheck_diff_skull_strip_fs+.png diff.fs+
+	Do_cmd vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz diff_mask_fs+.nii.gz vcheck_diff_skull_strip_fs+.png diff.fs+
 
 	#FS/FSL loose BET
-	vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz brain_mask_fs-.nii.gz vcheck_skull_strip_fs-.png fs-
+	Do_cmd vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz brain_mask_fs-.nii.gz vcheck_skull_strip_fs-.png fs-
 	Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_mask_fs-.nii.gz -abs -bin diff_mask_fs-.nii.gz
-	vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz diff_mask_fs-.nii.gz vcheck_diff_skull_strip_fs-.png diff.fs-
+	Do_cmd vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz diff_mask_fs-.nii.gz vcheck_diff_skull_strip_fs-.png diff.fs-
 
 	## Change the working directory ----------------------------------
 	Do_cmd popd
@@ -270,8 +267,8 @@ if [[ ! -z ${prior_mask} ]] && [[ ! -z ${prior_anat} ]]; then
     	Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_mask_prior.nii.gz  diff_mask_prior-fs.nii.gz
 		Do_cmd fslmaths diff_mask_prior.nii.gz -thr 0 -abs -bin tmp_diff_mask_prior+.nii.gz
 		Do_cmd fslmaths diff_mask_prior.nii.gz -uthr 0 -abs -bin tmp_diff_mask_prior-.nii.gz
-		vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz tmp_diff_mask_prior+.nii.gz vcheck_diff_skull_strip_prior+.png diff.prior+
-		vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz tmp_diff_mask_prior-.nii.gz vcheck_diff_skull_strip_prior-.png diff.prior-
+		Do_cmd vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz tmp_diff_mask_prior+.nii.gz vcheck_diff_skull_strip_prior+.png diff.prior+
+		Do_cmd vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz tmp_diff_mask_prior-.nii.gz vcheck_diff_skull_strip_prior-.png diff.prior-
 		Do_cmd rm tmp_diff_mask_prior+.nii.gz tmp_diff_mask_prior-.nii.gz
 	fi	
 fi
