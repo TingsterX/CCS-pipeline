@@ -162,7 +162,9 @@ if [ ! -e ${anat_dir}/${T1w}.nii.gz ]; then
     Do_cmd 3drefit -deoblique ${anat_dir}/${T1w}.nii.gz
 fi
 # Bias Field Correction (N4)
-Do_cmd N4BiasFieldCorrection -d 3 -i ${anat_dir}/${T1w}.nii.gz -o ${anat_dir}/${T1w}_bc.nii.gz
+if [ ! -f ${anat_dir}/${T1w}_bc.nii.gz ]; then
+	Do_cmd N4BiasFieldCorrection -d 3 -i ${anat_dir}/${T1w}.nii.gz -o ${anat_dir}/${T1w}_bc.nii.gz
+fi
 
 
 ## DO skullstriping in FS, FSL-BET
