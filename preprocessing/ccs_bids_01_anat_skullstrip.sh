@@ -176,7 +176,7 @@ if [ ${do_skullstrip} = true ]; then
 	## 3.1 FS autorecon1 - skull stripping
 	SUBJECTS_DIR=${anat_dir}/mask
 	echo "Auto reconstruction stage in Freesurfer (Take half hour ...)"
-	if [ ${gcut} = 'true' ]; then
+	if [[ ${do_gcut} = 'true' ]]; then
 		Do_cmd recon-all -s FS -autorecon1 -notal-check -clean-bm -no-isrunning -noappend -gcut 
 	else
 		Do_cmd recon-all -s FS -autorecon1 -notal-check -clean-bm -no-isrunning -noappend
