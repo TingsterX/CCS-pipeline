@@ -175,11 +175,13 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd mri_convert --in_type nii ${anat_dir}/${T1w}_bc.nii.gz ${anat_dir}/mask/FS/mri/orig/001.mgz
 	## 3.1 FS autorecon1 - skull stripping
 	SUBJECTS_DIR=${anat_dir}/mask
+	if [ ! -f ${SUBJECTS_DIR}/FS/mri/brainmask.mgz ]; then
 	echo "Auto reconstruction stage in Freesurfer (Take half hour ...)"
 	if [[ ${do_gcut} = 'true' ]]; then
 		Do_cmd recon-all -s FS -autorecon1 -notal-check -clean-bm -no-isrunning -noappend -gcut 
 	else
 		Do_cmd recon-all -s FS -autorecon1 -notal-check -clean-bm -no-isrunning -noappend
+	fi
 	fi
 	
 	## generate the registration (FS - original)
