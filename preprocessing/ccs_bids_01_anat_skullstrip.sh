@@ -230,6 +230,10 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd fslmaths T1.nii.gz -mas brain_mask_fs-.nii.gz brain_fs-.nii.gz
 	Do_cmd mri_vol2vol --mov brain_fs-.nii.gz --targ ${SUBJECTS_DIR}/FS/mri/T1.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg --o ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz
 	Do_cmd mri_mask ${SUBJECTS_DIR}/FS/mri/T1.mgz ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz ${SUBJECTS_DIR}/FS/mri/brainmask.loose.mgz
+	
+	## clean up
+	Do_cmd rm -rf tmp_mask.nii.gz tmp_standard2head_fs.mat tmp_head_fs2standard.mat
+
 
 	## 4. Quality check
 	#FS BET
