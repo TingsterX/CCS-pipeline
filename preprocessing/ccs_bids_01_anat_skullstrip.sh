@@ -187,7 +187,7 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/FS/mri/T1.mgz --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --noedit --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --fslregout ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.FSL.mat --regheader --s FS 
 	## invert affine matrix: invert the FSL affine matrix and transfer back to FS format
 	Do_cmd convert_xfm -omat ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.FSL.mat -inverse ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.FSL.mat
-	Do_cmd tkregister2 --s FS --mov ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --targ ${SUBJECTS_DIR}/FS/mri/T1.mgz --fsl ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.FSL.mat --noedit --reg ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg
+	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --targ ${SUBJECTS_DIR}/FS/mri/T1.mgz --fsl ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.FSL.mat --noedit --reg ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg --s FS 
 	## Note: --ltaout-inv is not available for FS 5.3.0, but available for FS 7.3
 	## Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/FS/mri/T1.mgz --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --ltaout-inv --ltaout ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg 
 	
@@ -218,7 +218,8 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd fslmaths brain_mask_fs.nii.gz -add brain_mask_fsl_tight.nii.gz -bin brain_mask_fs+.nii.gz
 	Do_cmd fslmaths T1.nii.gz -mas brain_mask_fsl_tight.nii.gz brain_fsl_tight.nii.gz
 	Do_cmd fslmaths T1.nii.gz -mas brain_mask_fs+.nii.gz brain_fs+.nii.gz
-	Do_cmd mri_vol2vol --mov brain_fs+.nii.gz --targ ${SUBJECTS_DIR}/FS/mri/T1.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg --o ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz
+	Do_cmd mri_convert brain_fs+.nii.gz ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz
+	Do_cmd mri_vol2vol --mov ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz --targ ${SUBJECTS_DIR}/FS/mri/T1.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg --o ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz --regheader
 	Do_cmd mri_mask ${SUBJECTS_DIR}/FS/mri/T1.mgz ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz ${SUBJECTS_DIR}/FS/mri/brainmask.tight.mgz
 
 	echo "Perform a loose brain extraction ..."
@@ -228,7 +229,8 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd fslmaths brain_mask_fs.nii.gz -mul brain_mask_fsl_loose.nii.gz -bin brain_mask_fs-.nii.gz
 	Do_cmd fslmaths T1.nii.gz -mas brain_mask_fsl_loose.nii.gz brain_fsl_loose.nii.gz
 	Do_cmd fslmaths T1.nii.gz -mas brain_mask_fs-.nii.gz brain_fs-.nii.gz
-	Do_cmd mri_vol2vol --mov brain_fs-.nii.gz --targ ${SUBJECTS_DIR}/FS/mri/T1.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg --o ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz
+	Do_cmd mri_convert brain_fs-.nii.gz ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz
+	Do_cmd mri_vol2vol --mov brain_fs-.mgz --targ ${SUBJECTS_DIR}/FS/mri/T1.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg --o ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz
 	Do_cmd mri_mask ${SUBJECTS_DIR}/FS/mri/T1.mgz ${SUBJECTS_DIR}/FS/mri/brain_fs-.mgz ${SUBJECTS_DIR}/FS/mri/brainmask.loose.mgz
 	
 	## clean up
