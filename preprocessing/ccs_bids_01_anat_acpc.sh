@@ -15,7 +15,7 @@ Usage: ${0}
 	--ref_head=[template head used for ACPC alignment], default=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz
 	--ref_brain=[template brain used for ACPC alignment], default=${FSLDIR}/data/standard/MNI152_T1_1mm_brain.nii.gz
 	--anat_dir=<anatomical directory>, e.g. base_dir/subID/anat or base_dir/subID/sesID/anat
-	--SUBJECTS_DIR=<FreeSurfer SUBJECTS_DIR>, default=anat_dir
+	--SUBJECTS_DIR=<FreeSurfer SUBJECTS_DIR>, e.g. base_dir/subID/sesID
 	--subject=<subject ID>, e.g. sub001 
 	--T1w_name=[T1w name], default=T1w
 	--mask_select=[fs/fs+/fs-/prior], default=fs
@@ -54,15 +54,9 @@ subject=`getopt1 "--subject" $@`
 T1w=`getopt1 "--T1w_name" $@`
 mask_select=`getopt1 "--mask_select" $@`
 
-if [ -z ${anat_dir} ] || [ -z ${subject} ]; then
-	Usage
-	exit 1
-fi
-
 ## default parameter
 template_head=`defaultopt ${template_head} ${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz`
-template_mask=`defaultopt ${template_init_mask} ${FSLDIR}/data/standard/MNI152_T1_1mm_brain.nii.gz`
-SUBJECTS_DIR=`defaultopt ${SUBJECTS_DIR} ${anat_dir}`
+template_brain=`defaultopt ${template_brain} ${FSLDIR}/data/standard/MNI152_T1_1mm_brain.nii.gz`
 T1w=`defaultopt ${T1w} T1w`
 mask_select=`defaultopt ${mask_select} fs`
 
@@ -91,21 +85,21 @@ vcheck_acpc() {
     Do_cmd 3dcalc -a ${underlay} -expr "step(x)+step(y)+step(z)" -prefix tmp_acpc_mask_${underlay}.nii.gz
 	Do_cmd overlay 1 1 ${underlay} -a tmp_acpc_mask_${underlay}.nii.gz 1 4 tmp_rendered_mask.nii.gz
 	Do_cmd slicer tmp_rendered_mask.nii.gz -a ${figout} -L
-	#Do_cmd convert -font helvetica -fill white -pointsize 36 -draw "text 30,50 '$title'" ${figout} ${figout}
+	Do_cmd convert -font helvetica -fill white -pointsize 36 -draw "text 30,50 '$title'" ${figout} ${figout}
 	Do_cmd rm -f tmp_rendered_mask.nii.gz tmp_acpc_mask_${underlay}.nii.gz
 }
 
 ## set the selected brain mask 
 T1w_brain_mask=${anat_dir}/mask/brain_mask_${mask_select}.nii.gz
-if [ ! -e ${T1w_brain_mask} ]; then
-    Error "Selected brain mask ${brain} doesn't exist, please check"
+if [ ! -f ${T1w_brain_mask} ]; then
+    Error "Selected brain mask ${T1w_brain_mask} doesn't exist, please check"
     exit;
 fi
 
 ## ======================================================
 ## 
 echo ----------------------------------------------------
-echo  >>> PREPROCESSING ANATOMICAL SCAN - ACPC alignment
+echo  PREPROCESSING ANATOMICAL SCAN - ACPC alignment
 echo ----------------------------------------------------
 cwd=$( pwd )
 Do_cmd mkdir ${anat_dir}/reg
@@ -117,8 +111,14 @@ Do_cmd fslmaths ${anat_dir}/${T1w}.nii.gz -mas ${T1w_brain_mask} ${anat_dir}/${T
 
 ## ACPC alignment
 Do_cmd flirt -in ${anat_dir}/${T1w}_brain.nii.gz -ref ${template_brain} -omat ${anat_dir}/reg/orig2std_dof12.mat -dof 12
-Do_cmd flirt -interp spline -in ${anat_dir}/${T1w}.nii.gz -ref ${template_brain} -applyxfm -init ${anat_dir}/reg/orig2std_dof12.mat -out ${anat_dir}/reg/orig2std_dof12.nii.gz
-Do_cmd flirt -in ${anat_dir}/${T1w}.nii.gz -ref ${anat_dir}/reg/orig2std_dof12.nii.gz -out ${anat_dir}/${T1w}_acpc.nii.gz -dof 6 -omat ${anat_dir}/reg/acpc.mat
+Do_cmd flirt -interp spline -in ${anat_dir}/${T1w}_brain.nii.gz -ref ${template_brain} -applyxfm -init ${anat_dir}/reg/orig2std_dof12.mat -out ${anat_dir}/reg/orig2std_dof12.nii.gz
+Do_cmd flirt -in ${anat_dir}/${T1w}_brain.nii.gz -ref ${anat_dir}/reg/orig2std_dof12.nii.gz -out ${anat_dir}/reg/${T1w}_acpc_step1.nii.gz -dof 6 -omat ${anat_dir}/reg/acpc_step1.mat
+Do_cmd flirt -in ${anat_dir}/reg/${T1w}_acpc_step1.nii.gz -ref ${anat_dir}/reg/orig2std_dof12.nii.gz -out ${anat_dir}/reg/${T1w}_acpc_step2.nii.gz -dof 6 -omat ${anat_dir}/reg/acpc_step2.mat
+Do_cmd convert_xfm -omat ${anat_dir}/reg/acpc.mat -concat ${anat_dir}/reg/acpc_step2.mat ${anat_dir}/reg/acpc_step1.mat
+Do_cmd aff2rigid ${anat_dir}/reg/acpc.mat ${anat_dir}/reg/acpc.mat
+Do_cmd flirt -interp spline -in ${anat_dir}/${T1w}.nii.gz -ref ${template_brain} -applyxfm -init ${anat_dir}/reg/acpc.mat -out ${anat_dir}/${T1w}_acpc.nii.gz
+Do_cmd flirt -interp nearestneighbour -in ${anat_dir}/${T1w}_brain_mask.nii.gz -ref ${template_brain} -applyxfm -init ${anat_dir}/reg/acpc.mat -out ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz
+Do_cmd fslmaths ${anat_dir}/${T1w}_acpc.nii.gz -mas ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz ${anat_dir}/${T1w}_acpc_brain.nii.gz
 
 ## Get back to the directory
 Do_cmd cd ${cwd}
