@@ -119,9 +119,9 @@ popd
 if [[ ! -e ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz ]]; then
   echo "Segmenting brain for ${subject} (May take more than 24 hours ...)"
   if [ "${use_gpu}" = "true" ]; then
-    Do_cmd recon-all -s ${subject} -autorecon2 -autorecon3 -use-gpu -no-isrunning
+    Do_cmd recon-all -s ${subject} -autorecon2 -autorecon3 -no-isrunning -careg -use-gpu 
   else
-    Do_cmd recon-all -s ${subject} -autorecon2 -autorecon3 -no-isrunning
+    Do_cmd recon-all -s ${subject} -autorecon2 -autorecon3 -no-isrunning -careg
   fi
 fi
 
