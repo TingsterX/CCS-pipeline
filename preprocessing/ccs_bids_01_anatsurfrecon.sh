@@ -105,9 +105,9 @@ fi
 
 # generate the inverse transformation matrix in FSL and lta (FS) format
 Do_cmd convert_xfm -omat xfm_rawavg_To_fs.FSL.mat -inverse xfm_fs_To_rawavg.FSL.mat
-Do_cmd tkregister2 --s ${subject} --mov T1.mgz --targ rawavg.mgz --reg xfm_fs_To_rawavg.reg --ltaout-inv --ltaout xfm_rawavg_To_fs.reg --noedit
-## The inverse transformation matrix can be also converted from FSL to FS
-## tkregister2 --s ${subject} --mov rawavg.mgz --targ T1.mgz --fsl xfm_fs_To_rawavg.FSL.mat --noedit --reg xfm_rawavg_To_fs.reg
+Do_cmd tkregister2 --mov rawavg.mgz --targ T1.mgz --fsl xfm_rawavg_To_fs.FSL.mat --noedit --reg xfm_rawavg_To_fs.reg --s ${subject}
+## Note: --ltaout-inv is not available for FS 5.3.0, but available for FS 7.3
+## Do_cmd tkregister2 --mov T1.mgz --targ rawavg.mgz --reg xfm_fs_To_rawavg.reg --ltaout-inv --ltaout xfm_rawavg_To_fs.reg --s ${subject} 
 
 # convert the selected brain mask to FS space
 Do_cmd mri_vol2vol --interp nearest --mov ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz --targ T1.mgz --reg xfm_rawavg_To_fs.reg --o tmp.brainmask.mgz 
