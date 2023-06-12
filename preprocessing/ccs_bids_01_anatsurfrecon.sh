@@ -89,20 +89,23 @@ echo ------------------------------------------
 cwd=$( pwd ) 
 
 mkdir -p ${SUBJECTS_DIR}/${subject}/mri/orig
-Do_cmd mri_convert ${anat_dir}/${T1w}_acpc.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
-Do_cmd recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -no-isrunning -noappend
+if [ ! -f ${SUBJECTS_DIR}/${subject}/mri/brainmask.init.fs.mgz ]; then
+  Do_cmd mri_convert ${anat_dir}/${T1w}_acpc.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
+  # recon-all -autoreonn1
+  Do_cmd recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -no-isrunning -noappend
+fi
 
-# recon-all -autoreonn1
 pushd ${SUBJECTS_DIR}/${subject}/mri
 ## generate the registration (FS - Input)
 echo "Generate the registration file FS to input (rawavg) space ..."
-Do_cmd tkregister2 --mov T1.mgz --targ rawavg.mgz --noedit --reg xfm_fs_To_rawavg.reg --fslregout xfm_fs_To_rawavg.FSL.mat --regheader --s ${subject}
+Do_cmd tkregister2 --mov T1.mgz --targ rawavg.mgz --noedit --reg xfm_fs_To_rawavg.reg --fslregout xfm_fs_To_rawavg.FSL.mat --regheader --s {subject}
 if [ ! -f brainmask.init.fs.mgz ]; then
   Do_cmd mv brainmask.mgz brainmask.init.fs.mgz
 fi
+
 # generate the inverse transformation matrix in FSL and lta (FS) format
 Do_cmd convert_xfm -omat xfm_rawavg_To_fs.FSL.mat -inverse xfm_fs_To_rawavg.FSL.mat
-Do_cmd tkregister2 --s ${subject} --mov T1.mgz --targ rawavg.mgz --reg xfm_fs_To_rawavg.reg --ltaout-inv --ltaout xfm_rawavg_To_fs.reg
+Do_cmd tkregister2 --s ${subject} --mov T1.mgz --targ rawavg.mgz --reg xfm_fs_To_rawavg.reg --ltaout-inv --ltaout xfm_rawavg_To_fs.reg --noedit
 ## The inverse transformation matrix can be also converted from FSL to FS
 ## tkregister2 --s ${subject} --mov rawavg.mgz --targ T1.mgz --fsl xfm_fs_To_rawavg.FSL.mat --noedit --reg xfm_rawavg_To_fs.reg
 
