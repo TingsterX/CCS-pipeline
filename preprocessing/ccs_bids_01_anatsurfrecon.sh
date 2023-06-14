@@ -62,11 +62,6 @@ use_gpu=`defaultopt ${use_gpu} false`
 rerun_FS=`defaultopt ${rerun_FS} false`
 rerun_FAST=`defaultopt ${rerun_FAST} false`
 
-## Make sure the input file exist (T1w_acpc.nii.gz) 
-if [ ! -e ${anat_dir}/${T1w}_acpc.nii.gz ] ; then
-  Error "Input ${anat_dir}/${T1w}_acpc.nii.gz doesn't exist. Please run acpc first"
-fi
-
 ## Setting up logging
 #exec > >(tee "Logs/${subject}/01_anatpreproc_log.txt") 2>&1
 #set -x 
@@ -83,11 +78,14 @@ Note "rerun_FAST=          ${rerun_FAST}"
 echo "------------------------------------------------"
 
 threshold_fast=0.99
-## ======================================================
-
-## 
 cwd=$( pwd ) 
-
+## ======================================================
+## Make sure the input file exist 
+T1w_image=${anat_dir}/${T1w}_acpc.nii.gz
+if [ ! -e ${T1w_image} ] ; then
+  Error "Input ${T1w_image} doesn't exist. Please run acpc first"
+fi
+## ======================================================
 if [ ${rerun_FS} = "true" ]; then
   Note "Remove the current FreeSurfer output and rerun recon-all..."
   Do_cmd rm -r ${SUBJECTS_DIR}/${subject}/*
@@ -96,14 +94,12 @@ if [ ${rerun_FAST} = "true" ]; then
   Note "Remove the current FSL-FAST output and rerun FAST segmentation..."
   Do_cmd rm -r ${anat_dir}/segment_fast/*
 fi
+## ======================================================
 
 
-
-
-
-mkdir -p ${SUBJECTS_DIR}/${subject}/mri/orig
 if [ ! -f ${SUBJECTS_DIR}/${subject}/mri/brainmask.init.fs.mgz ]; then
-  Do_cmd mri_convert ${anat_dir}/${T1w}_acpc.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
+  mkdir -p ${SUBJECTS_DIR}/${subject}/mri/orig
+  Do_cmd mri_convert ${T1w_image} ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
   # recon-all -autoreonn1
   echo -------------------------------------------
   Info "RUNNING FreeSurfer recon-all -autorecon1"
@@ -113,7 +109,6 @@ if [ ! -f ${SUBJECTS_DIR}/${subject}/mri/brainmask.init.fs.mgz ]; then
   if [ ! -f brainmask.init.fs.mgz ]; then
     Do_cmd mv brainmask.mgz brainmask.init.fs.mgz
   fi
-
   pushd ${SUBJECTS_DIR}/${subject}/mri
   ## generate the registration (FS - Input)
   echo "Generate the registration file FS to input (rawavg) space ..."
@@ -179,13 +174,13 @@ echo "-------------------------------------------"
 Do_cmd mkdir ${anat_dir}/segment_fast
 Do_cmd cd ${anat_dir}/segment_fast
 if [[ ! -e segment_pveseg.nii.gz ]]; then
-  Do_cmd fast -o segment ${anat_dir}/${T1w}_acpc.nii.gz
+  Do_cmd fast -S 3 -o segment ${T1w_image}
 else
   Note "SKIP >> FAST segmentation done"
 fi
 if [ ${rerun_FAST} = "true" ] || [ ! -f segment_wm_erode1.nii.gz ]; then
-  echo "RUN >> Threshold FSL-FAST to create csf/wm segment files"
-  Note "Segmentation threshold of FSL-FAST for wm and csf: ${threshold_fast}"
+  Info "RUN >> Threshold FSL-FAST to create csf/wm segment files"
+  Info "Segmentation threshold of FSL-FAST for wm and csf: ${threshold_fast}"
   Do_cmd cp ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz segment_brain.nii.gz
   Do_cmd fslmaths segment_pve_1.nii.gz -thr ${threshold_fast} segment_csf.nii.gz
   Do_cmd fslmaths segment_pve_2.nii.gz -thr ${threshold_fast} segment_wm.nii.gz
