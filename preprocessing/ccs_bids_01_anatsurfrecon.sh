@@ -174,6 +174,7 @@ echo "-------------------------------------------"
 Do_cmd mkdir ${anat_dir}/segment_fast
 Do_cmd cd ${anat_dir}/segment_fast
 if [[ ! -e segment_pveseg.nii.gz ]]; then
+  Info "Running FAST ..."
   Do_cmd fast -S 3 -o segment ${T1w_image}
 else
   Note "SKIP >> FAST segmentation done"
