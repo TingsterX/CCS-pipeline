@@ -78,76 +78,82 @@ Note "use_gpu=             ${use_gpu}"
 Note "rerun=               ${rerun}"
 echo "------------------------------------------------"
 
+threshold_fast=0.99
 ## ======================================================
-## 
-echo ------------------------------------------
-echo !!!! RUNNING FreeSurfer  !!!!
-echo ------------------------------------------
-## directory setup
 
-## 1. Change to anat dir
+## 
 cwd=$( pwd ) 
 
-mkdir -p ${SUBJECTS_DIR}/${subject}/mri/orig
-if [ ! -f ${SUBJECTS_DIR}/${subject}/mri/brainmask.init.fs.mgz ]; then
-  Do_cmd mri_convert ${anat_dir}/${T1w}_acpc.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
-  # recon-all -autoreonn1
-  Do_cmd recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -no-isrunning -noappend
-else
-  Info "FreeSurfer recon-all -autorecon1 has finished"
-fi
+if [ ! -f ${anat_dir}/segment/segment_wm+sub+stem.nii.gz ]; then
 
-pushd ${SUBJECTS_DIR}/${subject}/mri
-## generate the registration (FS - Input)
-echo "Generate the registration file FS to input (rawavg) space ..."
-Do_cmd tkregister2 --mov T1.mgz --targ rawavg.mgz --noedit --reg xfm_fs_To_rawavg.reg --fslregout xfm_fs_To_rawavg.FSL.mat --regheader --s ${subject}
-if [ ! -f brainmask.init.fs.mgz ]; then
-  Do_cmd mv brainmask.mgz brainmask.init.fs.mgz
-fi
-
-# generate the inverse transformation matrix in FSL and lta (FS) format
-Do_cmd convert_xfm -omat xfm_rawavg_To_fs.FSL.mat -inverse xfm_fs_To_rawavg.FSL.mat
-Do_cmd tkregister2 --mov rawavg.mgz --targ T1.mgz --fsl xfm_rawavg_To_fs.FSL.mat --noedit --reg xfm_rawavg_To_fs.reg --s ${subject}
-## Note: --ltaout-inv is not available for FS 5.3.0, but available for FS 7.3
-## Do_cmd tkregister2 --mov T1.mgz --targ rawavg.mgz --reg xfm_fs_To_rawavg.reg --ltaout-inv --ltaout xfm_rawavg_To_fs.reg --s ${subject} 
-
-# convert the selected brain mask to FS space
-Do_cmd mri_vol2vol --interp nearest --mov ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz --targ T1.mgz --reg xfm_rawavg_To_fs.reg --o tmp.brainmask.mgz 
-Do_cmd mri_mask T1.mgz tmp.brainmask.mgz brainmask.mgz
-Do_cmd rm -rf tmp.brainmask.mgz
-popd
-
-# recon-all -autoreonn2 -autorecon3
-if [[ ! -e ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz ]]; then
-  echo "Segmenting brain for ${subject} (May take more than 24 hours ...)"
-  if [ "${use_gpu}" = "true" ]; then
-    Do_cmd recon-all -s ${subject} -autorecon2 -autorecon3 -no-isrunning -careg -use-gpu 
+  echo ------------------------------------------
+  echo !!!! RUNNING FreeSurfer  !!!!
+  echo ------------------------------------------
+  
+  mkdir -p ${SUBJECTS_DIR}/${subject}/mri/orig
+  if [ ! -f ${SUBJECTS_DIR}/${subject}/mri/brainmask.init.fs.mgz ]; then
+    Do_cmd mri_convert ${anat_dir}/${T1w}_acpc.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
+    # recon-all -autoreonn1
+    Do_cmd recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -no-isrunning -noappend
+    if [ ! -f brainmask.init.fs.mgz ]; then
+      Do_cmd mv brainmask.mgz brainmask.init.fs.mgz
+    fi
   else
-    Do_cmd recon-all -s ${subject} -autorecon2 -autorecon3 -no-isrunning -careg
+    Info "FreeSurfer recon-all -autorecon1 has finished"
   fi
-else
-  Info "FreeSurfer recon-all -autorecon2 -autorecon3 has finished"
-fi
+  
+  pushd ${SUBJECTS_DIR}/${subject}/mri
+  ## generate the registration (FS - Input)
+  echo "Generate the registration file FS to input (rawavg) space ..."
+  Do_cmd tkregister2 --mov T1.mgz --targ rawavg.mgz --noedit --reg xfm_fs_To_rawavg.reg --fslregout xfm_fs_To_rawavg.FSL.mat   --regheader --s ${subject}
+  # generate the inverse transformation matrix in FSL and lta (FS) format
+  Do_cmd convert_xfm -omat xfm_rawavg_To_fs.FSL.mat -inverse xfm_fs_To_rawavg.FSL.mat
+  Do_cmd tkregister2 --mov rawavg.mgz --targ T1.mgz --fsl xfm_rawavg_To_fs.FSL.mat --noedit --reg xfm_rawavg_To_fs.reg --s ${subject}
+  ## Note: --ltaout-inv is not available for FS 5.3.0, but available for FS 7.3
+  ## Do_cmd tkregister2 --mov T1.mgz --targ rawavg.mgz --reg xfm_fs_To_rawavg.reg --ltaout-inv --ltaout xfm_rawavg_To_fs.reg --s ${subject} 
+  
+  # convert the selected brain mask to FS space
+  Do_cmd mri_vol2vol --interp nearest --mov ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz --targ T1.mgz --reg xfm_rawavg_To_fs.reg   --o tmp.brainmask.mgz 
+  Do_cmd mri_mask T1.mgz tmp.brainmask.mgz brainmask.mgz
+  Do_cmd rm -rf tmp.brainmask.mgz
+  popd
+  
+  # recon-all -autoreonn2 -autorecon3
+  if [[ ! -e ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz ]]; then
+    echo "Segmenting brain for ${subject} (May take more than 24 hours ...)"
+    if [ "${use_gpu}" = "true" ]; then
+      Do_cmd recon-all -s ${subject} -autorecon2 -autorecon3 -no-isrunning -careg -use-gpu 
+    else
+      Do_cmd recon-all -s ${subject} -autorecon2 -autorecon3 -no-isrunning -careg
+    fi
+  else
+    Info "FreeSurfer recon-all -autorecon2 -autorecon3 has finished"
+  fi
+  
+  ## FS segmentation: 
+  echo "-------------------------------------------"
+  echo "FS segmentation"
+  echo "-------------------------------------------"
+  Do_cmd mkdir ${anat_dir}/segment
+  Do_cmd cd ${anat_dir}/segment
+  ## freesurfer version
+  if [ ! -f segment_wm_erode1.nii.gz ] || [ ! -f segment_csf_erode1.nii.gz ]; then
+    echo "RUN >> Convert FS aseg to create csf/wm segment files"
+    Do_cmd cp ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz segment_brain.nii.gz
+    #mri_convert -it mgz ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz -ot nii aseg.nii.gz
+    Do_cmd mri_vol2vol --interp nearest --mov ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz --targ ${SUBJECTS_DIR}/${subject}/mri/  rawavg.mgz --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --o aseg.nii.gz 
+    Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm.nii.gz --match 2 41 7 46 251 252 253 254 255 
+    Do_cmd mri_binarize --i aseg.nii.gz --o segment_csf.nii.gz --match 4 5 43 44 31 63 
+    Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm_erode1.nii.gz --match 2 41 7 46 251 252 253 254 255 --erode 1
+    Do_cmd mri_binarize --i aseg.nii.gz --o segment_csf_erode1.nii.gz --match 4 5 43 44 31 63 --erode 1
+    # Create for flirt -bbr to match with FAST wm output to include Thalamus, Thalamus-Proper*, VentralDC, Stem
+    Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm+sub+stem.nii.gz --match 2 41 7 46 251 252 253 254 255 9 48 10 49 28 60 16
+  else
+    Info "SKIP >> Convert FS aseg to create csf/wm segment files"
+  fi
 
-## FS segmentation: 
-echo "-------------------------------------------"
-echo "FS segmentation"
-echo "-------------------------------------------"
-Do_cmd mkdir ${anat_dir}/segment
-Do_cmd cd ${anat_dir}/segment
-## freesurfer version
-if [ ! -f segment_wm_erode1.nii.gz ] || [ ! -f segment_csf_erode1.nii.gz ]; then
-  echo "RUN >> Convert FS aseg to create csf/wm segment files"
-  #mri_convert -it mgz ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz -ot nii aseg.nii.gz
-  Do_cmd mri_vol2vol --interp nearest --mov ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --o aseg.nii.gz 
-  Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm.nii.gz --match 2 41 7 46 251 252 253 254 255 
-  Do_cmd mri_binarize --i aseg.nii.gz --o segment_csf.nii.gz --match 4 5 43 44 31 63 
-  Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm_erode1.nii.gz --match 2 41 7 46 251 252 253 254 255 --erode 1
-  Do_cmd mri_binarize --i aseg.nii.gz --o segment_csf_erode1.nii.gz --match 4 5 43 44 31 63 --erode 1
-  # Create for flirt -bbr to match with FAST wm output to include Thalamus, Thalamus-Proper*, VentralDC, Stem
-  Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm+sub+stem.nii.gz --match 2 41 7 46 251 252 253 254 255 9 48 10 49 28 60 16
 else
-  echo "SKIP >> Convert FS aseg to create csf/wm segment files"
+    Info "SKIP >> segmentation are created from FreeSurfer output"
 fi
 
 ## FAST segmentation: CSF: *_pve_0, GM: *_pve_1, WM: *_pve_2
@@ -156,6 +162,7 @@ echo "FAST segmentation"
 echo "-------------------------------------------"
 Do_cmd mkdir ${anat_dir}/segment_fast
 Do_cmd cd ${anat_dir}/segment_fast
+Do_cmd cp ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz segment_brain.nii.gz
 if [[ ! -e segment_pveseg.nii.gz ]]; then
   Do_cmd fast -o segment ${anat_dir}/${T1w}_acpc.nii.gz
 else
@@ -163,8 +170,8 @@ else
 fi
 if [ ! -f segment_wm_erode1.nii.gz ] || [ ! -f segment_csf_erode1.nii.gz ]; then
   echo "RUN >> Convert FS aseg to create csf/wm segment files"
-  Do_cmd fslmaths segment_pve_1.nii.gz -thr 0.99 segment_csf.nii.gz
-  Do_cmd fslmaths segment_pve_2.nii.gz -thr 0.99 segment_wm.nii.gz
+  Do_cmd fslmaths segment_pve_1.nii.gz -thr ${threshold_fast} segment_csf.nii.gz
+  Do_cmd fslmaths segment_pve_2.nii.gz -thr ${threshold_fast} segment_wm.nii.gz
   Do_cmd mri_binarize --i segment_csf.nii.gz --o segment_csf_erode1.nii.gz --match 1 --erode 1
   Do_cmd mri_binarize --i segment_wm.nii.gz --o segment_wm_erode1.nii.gz --match 1 --erode 1
 else
