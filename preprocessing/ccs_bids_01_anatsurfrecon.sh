@@ -17,7 +17,8 @@ Usage: ${0}
 	--subject=<subject ID>, e.g. sub001 
   --T1w_name=[T1w name], default=T1w
 	--use_gpu=[if use gpu], default=false
-  --rerun=[if delete FS output and redo reconstruction], default=false
+  --rerun_FS=[if delete FS output and redo reconstruction], default=false
+  --rerun_FAST=[if delete FAST output and redo reconstruction], default=false
 EOF
 }
 
@@ -50,14 +51,16 @@ SUBJECTS_DIR=`getopt1 "--SUBJECTS_DIR" $@`
 subject=`getopt1 "--subject" $@`
 T1w=`getopt1 "--T1w_name" $@`
 use_gpu=`getopt1 "--use_gpu" $@`
-rerun=`getopt1 "--rerun" $@`
+rerun_FS=`getopt1 "--rerun_FS" $@`
+rerun_FAST=`getopt1 "--rerun_FAST" $@`
 
 
 ## default parameter
 SUBJECTS_DIR=`defaultopt ${SUBJECTS_DIR} ${anat_dir}`
 T1w=`defaultopt ${T1w} T1w`
 use_gpu=`defaultopt ${use_gpu} false`
-rerun=`defaultopt ${do_denoise} false`
+rerun_FS=`defaultopt ${rerun_FS} false`
+rerun_FAST=`defaultopt ${rerun_FAST} false`
 
 ## Make sure the input file exist (T1w_acpc.nii.gz) 
 if [ ! -e ${anat_dir}/${T1w}_acpc.nii.gz ] ; then
@@ -75,7 +78,8 @@ Note "SUBJECTS_DIR=        ${SUBJECTS_DIR}"
 Note "subject=             ${subject}"
 Note "T1w_name=            ${T1w}"
 Note "use_gpu=             ${use_gpu}"
-Note "rerun=               ${rerun}"
+Note "rerun_FS=            ${rerun_FS}"
+Note "rerun_FAST=          ${rerun_FAST}"
 echo "------------------------------------------------"
 
 threshold_fast=0.99
@@ -85,6 +89,11 @@ threshold_fast=0.99
 cwd=$( pwd ) 
 
 if [ ! -f ${anat_dir}/segment/segment_wm+sub+stem.nii.gz ]; then
+
+  if [ ${rerun_FS} = "true" ]; then
+    Info "Remove the current FreeSurfer output and rerun recon-all..."
+    Do_cmd rm -r ${SUBJECTS_DIR}/${subject}/*
+  fi
 
   echo ------------------------------------------
   echo !!!! RUNNING FreeSurfer  !!!!
@@ -137,7 +146,7 @@ if [ ! -f ${anat_dir}/segment/segment_wm+sub+stem.nii.gz ]; then
   Do_cmd mkdir ${anat_dir}/segment
   Do_cmd cd ${anat_dir}/segment
   ## freesurfer version
-  if [ ! -f segment_wm_erode1.nii.gz ] || [ ! -f segment_csf_erode1.nii.gz ]; then
+  if [ ${rerun_FS} = "true" ] || [ ! -f segment_wm+sub+stem.nii.gz ]; then
     echo "RUN >> Convert FS aseg to create csf/wm segment files"
     Do_cmd cp ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz segment_brain.nii.gz
     #mri_convert -it mgz ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz -ot nii aseg.nii.gz
@@ -162,20 +171,25 @@ echo "FAST segmentation"
 echo "-------------------------------------------"
 Do_cmd mkdir ${anat_dir}/segment_fast
 Do_cmd cd ${anat_dir}/segment_fast
-Do_cmd cp ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz segment_brain.nii.gz
+if [ ${rerun_FAST} = "true" ]; then
+  Info "Remove the current FSL-FAST output and rerun FAST segmentation..."
+  Do_cmd rm -r ${anat_dir}/segment_fast/*
+fi
 if [[ ! -e segment_pveseg.nii.gz ]]; then
   Do_cmd fast -o segment ${anat_dir}/${T1w}_acpc.nii.gz
 else
   echo "SKIP >> FAST segmentation done"
 fi
-if [ ! -f segment_wm_erode1.nii.gz ] || [ ! -f segment_csf_erode1.nii.gz ]; then
-  echo "RUN >> Convert FS aseg to create csf/wm segment files"
+if [ ! -f segment_wm_erode1.nii.gz ]; then
+  echo "RUN >> Threshold FSL-FAST to create csf/wm segment files"
+  Note "Segmentation threshold of FSL-FAST for wm and csf: ${threshold_fast}"
+  Do_cmd cp ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz segment_brain.nii.gz
   Do_cmd fslmaths segment_pve_1.nii.gz -thr ${threshold_fast} segment_csf.nii.gz
   Do_cmd fslmaths segment_pve_2.nii.gz -thr ${threshold_fast} segment_wm.nii.gz
   Do_cmd mri_binarize --i segment_csf.nii.gz --o segment_csf_erode1.nii.gz --match 1 --erode 1
   Do_cmd mri_binarize --i segment_wm.nii.gz --o segment_wm_erode1.nii.gz --match 1 --erode 1
 else
-  echo "SKIP >> Convert FS aseg to create csf/wm segment files"
+  echo "SKIP >> Threshold FSL-FAST to create csf/wm segment files"
 fi
 
 Do_cmd cd ${cwd}
