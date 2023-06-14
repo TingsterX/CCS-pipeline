@@ -88,57 +88,69 @@ threshold_fast=0.99
 ## 
 cwd=$( pwd ) 
 
-if [ ! -f ${anat_dir}/segment/segment_wm+sub+stem.nii.gz ]; then
+if [ ${rerun_FS} = "true" ]; then
+  Note "Remove the current FreeSurfer output and rerun recon-all..."
+  Do_cmd rm -r ${SUBJECTS_DIR}/${subject}/*
+fi
+if [ ${rerun_FAST} = "true" ]; then
+  Note "Remove the current FSL-FAST output and rerun FAST segmentation..."
+  Do_cmd rm -r ${anat_dir}/segment_fast/*
+fi
 
-  if [ ${rerun_FS} = "true" ]; then
-    Info "Remove the current FreeSurfer output and rerun recon-all..."
-    Do_cmd rm -r ${SUBJECTS_DIR}/${subject}/*
+
+
+
+
+mkdir -p ${SUBJECTS_DIR}/${subject}/mri/orig
+if [ ! -f ${SUBJECTS_DIR}/${subject}/mri/brainmask.init.fs.mgz ]; then
+  Do_cmd mri_convert ${anat_dir}/${T1w}_acpc.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
+  # recon-all -autoreonn1
+  echo -------------------------------------------
+  Info "RUNNING FreeSurfer recon-all -autorecon1"
+  echo -------------------------------------------
+  Do_cmd recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -no-isrunning -noappend
+
+  if [ ! -f brainmask.init.fs.mgz ]; then
+    Do_cmd mv brainmask.mgz brainmask.init.fs.mgz
   fi
 
-  echo ------------------------------------------
-  echo !!!! RUNNING FreeSurfer  !!!!
-  echo ------------------------------------------
-  
-  mkdir -p ${SUBJECTS_DIR}/${subject}/mri/orig
-  if [ ! -f ${SUBJECTS_DIR}/${subject}/mri/brainmask.init.fs.mgz ]; then
-    Do_cmd mri_convert ${anat_dir}/${T1w}_acpc.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
-    # recon-all -autoreonn1
-    Do_cmd recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -no-isrunning -noappend
-    if [ ! -f brainmask.init.fs.mgz ]; then
-      Do_cmd mv brainmask.mgz brainmask.init.fs.mgz
-    fi
-  else
-    Info "FreeSurfer recon-all -autorecon1 has finished"
-  fi
-  
   pushd ${SUBJECTS_DIR}/${subject}/mri
   ## generate the registration (FS - Input)
   echo "Generate the registration file FS to input (rawavg) space ..."
-  Do_cmd tkregister2 --mov T1.mgz --targ rawavg.mgz --noedit --reg xfm_fs_To_rawavg.reg --fslregout xfm_fs_To_rawavg.FSL.mat   --regheader --s ${subject}
+  Do_cmd tkregister2 --mov T1.mgz --targ rawavg.mgz --noedit --reg xfm_fs_To_rawavg.reg --fslregout xfm_fs_To_rawavg.FSL.mat    --regheader --s ${subject}
   # generate the inverse transformation matrix in FSL and lta (FS) format
   Do_cmd convert_xfm -omat xfm_rawavg_To_fs.FSL.mat -inverse xfm_fs_To_rawavg.FSL.mat
-  Do_cmd tkregister2 --mov rawavg.mgz --targ T1.mgz --fsl xfm_rawavg_To_fs.FSL.mat --noedit --reg xfm_rawavg_To_fs.reg --s ${subject}
+  Do_cmd tkregister2 --mov rawavg.mgz --targ T1.mgz --fsl xfm_rawavg_To_fs.FSL.mat --noedit --reg xfm_rawavg_To_fs.reg --s   {subject}
   ## Note: --ltaout-inv is not available for FS 5.3.0, but available for FS 7.3
   ## Do_cmd tkregister2 --mov T1.mgz --targ rawavg.mgz --reg xfm_fs_To_rawavg.reg --ltaout-inv --ltaout xfm_rawavg_To_fs.reg --s ${subject} 
   
   # convert the selected brain mask to FS space
-  Do_cmd mri_vol2vol --interp nearest --mov ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz --targ T1.mgz --reg xfm_rawavg_To_fs.reg   --o tmp.brainmask.mgz 
+  Do_cmd mri_vol2vol --interp nearest --mov ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz --targ T1.mgz --reg xfm_rawavg_To_fsreg     --o tmp.brainmask.mgz 
   Do_cmd mri_mask T1.mgz tmp.brainmask.mgz brainmask.mgz
   Do_cmd rm -rf tmp.brainmask.mgz
   popd
-  
-  # recon-all -autoreonn2 -autorecon3
-  if [[ ! -e ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz ]]; then
-    echo "Segmenting brain for ${subject} (May take more than 24 hours ...)"
-    if [ "${use_gpu}" = "true" ]; then
-      Do_cmd recon-all -s ${subject} -autorecon2 -autorecon3 -no-isrunning -careg -use-gpu 
-    else
-      Do_cmd recon-all -s ${subject} -autorecon2 -autorecon3 -no-isrunning -careg
-    fi
+
+else
+  Note "SKIP >> FreeSurfer recon-all -autorecon1 has finished"
+fi
+
+
+# recon-all -autoreonn2 -autorecon3
+if [[ ! -e ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz ]]; then
+  echo -------------------------------------------
+  Info "RUNNING FreeSurfer recon-all -autorecon2 -autorecon3"
+  Info "Segmenting brain for ${subject} (May take more than 24 hours ...)"
+  echo -------------------------------------------
+  if [ "${use_gpu}" = "true" ]; then
+    Do_cmd recon-all -s ${subject} -autorecon2 -autorecon3 -no-isrunning -careg -use-gpu 
   else
-    Info "FreeSurfer recon-all -autorecon2 -autorecon3 has finished"
+    Do_cmd recon-all -s ${subject} -autorecon2 -autorecon3 -no-isrunning -careg
   fi
-  
+else
+  Note " SKIP >> FreeSurfer recon-all -autorecon2 -autorecon3 has finished"
+fi
+
+if [ ${rerun_FS} = "true" ] || [ ! -f segment_wm+sub+stem.nii.gz ]; then
   ## FS segmentation: 
   echo "-------------------------------------------"
   echo "FS segmentation"
@@ -146,23 +158,18 @@ if [ ! -f ${anat_dir}/segment/segment_wm+sub+stem.nii.gz ]; then
   Do_cmd mkdir ${anat_dir}/segment
   Do_cmd cd ${anat_dir}/segment
   ## freesurfer version
-  if [ ${rerun_FS} = "true" ] || [ ! -f segment_wm+sub+stem.nii.gz ]; then
-    echo "RUN >> Convert FS aseg to create csf/wm segment files"
-    Do_cmd cp ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz segment_brain.nii.gz
-    #mri_convert -it mgz ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz -ot nii aseg.nii.gz
-    Do_cmd mri_vol2vol --interp nearest --mov ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz --targ ${SUBJECTS_DIR}/${subject}/mri/  rawavg.mgz --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --o aseg.nii.gz 
-    Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm.nii.gz --match 2 41 7 46 251 252 253 254 255 
-    Do_cmd mri_binarize --i aseg.nii.gz --o segment_csf.nii.gz --match 4 5 43 44 31 63 
-    Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm_erode1.nii.gz --match 2 41 7 46 251 252 253 254 255 --erode 1
-    Do_cmd mri_binarize --i aseg.nii.gz --o segment_csf_erode1.nii.gz --match 4 5 43 44 31 63 --erode 1
-    # Create for flirt -bbr to match with FAST wm output to include Thalamus, Thalamus-Proper*, VentralDC, Stem
-    Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm+sub+stem.nii.gz --match 2 41 7 46 251 252 253 254 255 9 48 10 49 28 60 16
-  else
-    Info "SKIP >> Convert FS aseg to create csf/wm segment files"
-  fi
-
+  echo "RUN >> Convert FS aseg to create csf/wm segment files"
+  Do_cmd cp ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz segment_brain.nii.gz
+  #mri_convert -it mgz ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz -ot nii aseg.nii.gz
+  Do_cmd mri_vol2vol --interp nearest --mov ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz --targ ${SUBJECTS_DIR}/${subject}mri/   rawavg.mgz --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --o aseg.nii.gz 
+  Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm.nii.gz --match 2 41 7 46 251 252 253 254 255 
+  Do_cmd mri_binarize --i aseg.nii.gz --o segment_csf.nii.gz --match 4 5 43 44 31 63 
+  Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm_erode1.nii.gz --match 2 41 7 46 251 252 253 254 255 --erode 1
+  Do_cmd mri_binarize --i aseg.nii.gz --o segment_csf_erode1.nii.gz --match 4 5 43 44 31 63 --erode 1
+  # Create for flirt -bbr to match with FAST wm output to include Thalamus, Thalamus-Proper*, VentralDC, Stem
+  Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm+sub+stem.nii.gz --match 2 41 7 46 251 252 253 254 255 9 48 10 49 28 6016
 else
-    Info "SKIP >> segmentation are created from FreeSurfer output"
+  Note "SKIP >> segmentation are created from FreeSurfer output"
 fi
 
 ## FAST segmentation: CSF: *_pve_0, GM: *_pve_1, WM: *_pve_2
@@ -171,16 +178,12 @@ echo "FAST segmentation"
 echo "-------------------------------------------"
 Do_cmd mkdir ${anat_dir}/segment_fast
 Do_cmd cd ${anat_dir}/segment_fast
-if [ ${rerun_FAST} = "true" ]; then
-  Info "Remove the current FSL-FAST output and rerun FAST segmentation..."
-  Do_cmd rm -r ${anat_dir}/segment_fast/*
-fi
 if [[ ! -e segment_pveseg.nii.gz ]]; then
   Do_cmd fast -o segment ${anat_dir}/${T1w}_acpc.nii.gz
 else
-  echo "SKIP >> FAST segmentation done"
+  Note "SKIP >> FAST segmentation done"
 fi
-if [ ! -f segment_wm_erode1.nii.gz ]; then
+if [ ${rerun_FAST} = "true" ] || [ ! -f segment_wm_erode1.nii.gz ]; then
   echo "RUN >> Threshold FSL-FAST to create csf/wm segment files"
   Note "Segmentation threshold of FSL-FAST for wm and csf: ${threshold_fast}"
   Do_cmd cp ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz segment_brain.nii.gz
@@ -189,7 +192,7 @@ if [ ! -f segment_wm_erode1.nii.gz ]; then
   Do_cmd mri_binarize --i segment_csf.nii.gz --o segment_csf_erode1.nii.gz --match 1 --erode 1
   Do_cmd mri_binarize --i segment_wm.nii.gz --o segment_wm_erode1.nii.gz --match 1 --erode 1
 else
-  echo "SKIP >> Threshold FSL-FAST to create csf/wm segment files"
+  Note "SKIP >> Threshold FSL-FAST to create csf/wm segment files"
 fi
 
 Do_cmd cd ${cwd}
