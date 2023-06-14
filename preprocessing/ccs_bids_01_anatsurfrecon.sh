@@ -93,6 +93,8 @@ if [ ! -f ${SUBJECTS_DIR}/${subject}/mri/brainmask.init.fs.mgz ]; then
   Do_cmd mri_convert ${anat_dir}/${T1w}_acpc.nii.gz ${SUBJECTS_DIR}/${subject}/mri/orig/001.mgz
   # recon-all -autoreonn1
   Do_cmd recon-all -s ${subject} -autorecon1 -notal-check -clean-bm -no-isrunning -noappend
+else
+  Info "FreeSurfer recon-all -autorecon1 has finished"
 fi
 
 pushd ${SUBJECTS_DIR}/${subject}/mri
@@ -123,6 +125,8 @@ if [[ ! -e ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz ]]; then
   else
     Do_cmd recon-all -s ${subject} -autorecon2 -autorecon3 -no-isrunning -careg
   fi
+else
+  Info "FreeSurfer recon-all -autorecon2 -autorecon3 has finished"
 fi
 
 ## FS segmentation: 
@@ -153,7 +157,7 @@ echo "-------------------------------------------"
 Do_cmd mkdir ${anat_dir}/segment_fast
 Do_cmd cd ${anat_dir}/segment_fast
 if [[ ! -e segment_pveseg.nii.gz ]]; then
-  Do_cmd fast -o segment ${anat_seg_dir}/${T1w}_acpc.nii.gz
+  Do_cmd fast -o segment ${anat_dir}/${T1w}_acpc.nii.gz
 else
   echo "SKIP >> FAST segmentation done"
 fi
