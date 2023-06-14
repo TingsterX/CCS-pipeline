@@ -98,7 +98,7 @@ fi
 pushd ${SUBJECTS_DIR}/${subject}/mri
 ## generate the registration (FS - Input)
 echo "Generate the registration file FS to input (rawavg) space ..."
-Do_cmd tkregister2 --mov T1.mgz --targ rawavg.mgz --noedit --reg xfm_fs_To_rawavg.reg --fslregout xfm_fs_To_rawavg.FSL.mat --regheader --s {subject}
+Do_cmd tkregister2 --mov T1.mgz --targ rawavg.mgz --noedit --reg xfm_fs_To_rawavg.reg --fslregout xfm_fs_To_rawavg.FSL.mat --regheader --s ${subject}
 if [ ! -f brainmask.init.fs.mgz ]; then
   Do_cmd mv brainmask.mgz brainmask.init.fs.mgz
 fi
@@ -125,9 +125,9 @@ if [[ ! -e ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz ]]; then
   fi
 fi
 
-## FAST segmentation: CSF: *_pve_0, GM: *_pve_1, WM: *_pve_2
+## FS segmentation: 
 echo "-------------------------------------------"
-echo "FAST segmentation"
+echo "FS segmentation"
 echo "-------------------------------------------"
 Do_cmd mkdir ${anat_dir}/segment
 Do_cmd cd ${anat_dir}/segment
@@ -135,7 +135,7 @@ Do_cmd cd ${anat_dir}/segment
 if [ ! -f segment_wm_erode1.nii.gz ] || [ ! -f segment_csf_erode1.nii.gz ]; then
   echo "RUN >> Convert FS aseg to create csf/wm segment files"
   #mri_convert -it mgz ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz -ot nii aseg.nii.gz
-  Do_cmd mri_vol2vol --interp nearest --mov ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --reg xfm_fs_To_rawavg.reg --o aseg.nii.gz 
+  Do_cmd mri_vol2vol --interp nearest --mov ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz --targ ${SUBJECTS_DIR}/${subject}/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --o aseg.nii.gz 
   Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm.nii.gz --match 2 41 7 46 251 252 253 254 255 
   Do_cmd mri_binarize --i aseg.nii.gz --o segment_csf.nii.gz --match 4 5 43 44 31 63 
   Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm_erode1.nii.gz --match 2 41 7 46 251 252 253 254 255 --erode 1
