@@ -18,7 +18,7 @@ Usage: ${0}
   --anat_dir=<anatomical directory>, e.g. base_dir/subID/anat or base_dir/subID/sesID/anat
   --subject=<subject ID>, e.g. sub001 
   --T1w_name=[T1w name], default=T1w
-  --reg_method=[FSL, ANTS], default=FNIRT
+  --reg_method=[FSL, ANTS], default=FSL
   --fnirt_config=[fnirt configuration], default=${FSLDIR}/etc/flirtsch/T1_2_MNI152_2mm.cnf
   --ref_nonlinear=[head, brain], default=head
 EOF
@@ -62,19 +62,9 @@ template_head=`defaultopt ${template_head} ${FSLDIR}/data/standard/MNI152_T1_2mm
 template_brain=`defaultopt ${template_init_mask} ${FSLDIR}/data/standard/MNI152_T1_2mm_brain.nii.gz`
 template_mask=`defaultopt ${template_init_mask} ${FSLDIR}/data/standard/MNI152_T1_2mm_brain_mask_dil.nii.gz`
 T1w=`defaultopt ${T1w} T1w`
-reg_method=`defaultopt ${reg_method} FNIRT`
+reg_method=`defaultopt ${reg_method} FSL`
 fnirt_config=`defaultopt ${fnirt_config} ${FSLDIR}/etc/flirtsch/T1_2_MNI152_2mm.cnf`
 ref_nonlinear=`defaultopt ${ref_nonlinear} head`
-
-## If prior_mask is provided, make sure prior_anat is also provided
-if [ ! ${reg_method} = "FSL" ] || [ ! ${reg_method} = "ANTS" ]; then
-  Error "Specify registration method! FNIRT or ANTS"
-  exit 1
-fi
-if [ ! ${ref_nonlinear} = "head" ] || [ ! ${ref_nonlinear} = "brain" ]; then
-  Error "Specify reference for nonlinear registration: head(default) or brain"
-  exit 1
-fi
 
 ## Setting up logging
 #exec > >(tee "Logs/${subject}/${0/.sh/.txt}") 2>&1
@@ -92,6 +82,16 @@ Note "reg_method=          ${reg_method}"
 Note "fnirt_config=        ${fnirt_config}"
 echo "------------------------------------------------"
 
+# ----------------------------------------------------
+## If prior_mask is provided, make sure prior_anat is also provided
+if [ ! ${reg_method} = "FSL" ] && [ ! ${reg_method} = "ANTS" ]; then
+  Error "Specify registration method! FSL or ANTS"
+  exit 1
+fi
+if [ ! ${ref_nonlinear} = "head" ] && [ ! ${ref_nonlinear} = "brain" ]; then
+  Error "Specify reference for nonlinear registration: head(default) or brain"
+  exit 1
+fi
 
 # ----------------------------------------------------
 anat_reg_dir_name=xfms
@@ -146,12 +146,14 @@ echo -----------------------------------------
 echo !!!! RUNNING ANATOMICAL REGISTRATION !!!!
 echo -----------------------------------------
 
-pushed ${anat_reg_dir}
+pushd ${anat_reg_dir}
 if [ ${reg_method} = "FSL" ]; then
   Note "Registration using FSL"
-  Do_cmd flirt -dof 12 -ref ${template_brain} -in ${T1w_brain} -omat ${anat_reg_dir}/acpc2standard.mat -cost corratio-searchcost   corratio -interp spline -out ${anat_reg_dir}/flirt_${T1w_image}_to_standard.nii.gz
+  if [ ! -f ${anat_reg_dir}/standard2acpc.mat ]; then
+  Do_cmd flirt -dof 12 -ref ${template_brain} -in ${T1w_brain} -omat ${anat_reg_dir}/acpc2standard.mat -cost corratio -searchcost corratio -interp spline -out ${anat_reg_dir}/flirt_${T1w_image}_to_standard.nii.gz
   Do_cmd convert_xfm -omat standard2acpc.mat -inverse acpc2standard.mat
-  Do_cmd fnirt --in=${native_image} --ref=${ref_nonlinear} --aff=acpc2standard.mat --refmask=${template_mask} --fout=$  {RegTransform} --jout=NonlinearRegJacobians.nii.gz --refout=IntensityModulatedT1nii.gz --iout=fnirt_${T1w_image}_to_standard.nii.gz --logout=NonlinearReg.txt --intout=NonlinearIntensities.nii.gz --cout=NonlinearReg.nii.gz --config=${FNIRTConfig}
+  fi
+  Do_cmd fnirt --in=${native_image} --ref=${ref_nonlinear} --aff=acpc2standard.mat --refmask=${template_mask} --fout=${RegTransform} --jout=NonlinearRegJacobians.nii.gz --refout=IntensityModulatedT1nii.gz --iout=fnirt_${T1w_image}_to_standard.nii.gz --logout=NonlinearReg.txt --intout=NonlinearIntensities.nii.gz --cout=NonlinearReg.nii.gz --config=${fnirt_config}
   Do_cmd invwarp -w ${RegTransform} -o ${RegInvTransform} -r ${template_head}
 
 elif [ ${reg_method} = "ANTS" ]; then
