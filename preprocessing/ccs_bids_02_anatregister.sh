@@ -12,15 +12,15 @@ Usage() {
 ${0}: Registration
 
 Usage: ${0}
-	--ref_head=[template head ], default=${FSLDIR}/data/standard/MNI152_T1_2mm.nii.gz
-	--ref_brain=[initial template mask], default=${FSLDIR}/data/standard/MNI152_T1_2mm_brain.nii.gz
-        --ref_mask=[initial template mask], default=${FSLDIR}/data/standard/MNI152_T1_2mm_brain_mask_dil.nii.gz
-	--anat_dir=<anatomical directory>, e.g. base_dir/subID/anat or base_dir/subID/sesID/anat
-	--subject=<subject ID>, e.g. sub001 
-	--T1w_name=[T1w name], default=T1w
-        --reg_method=[FSL, ANTS], default=FNIRT
-        --fnirt_config=[fnirt configuration], default=${FSLDIR}/etc/flirtsch/T1_2_MNI152_2mm.cnf
-        --ref_nonlinear=[head, brain], default=head
+  --ref_head=[template head ], default=${FSLDIR}/data/standard/MNI152_T1_2mm.nii.gz
+  --ref_brain=[initial template mask], default=${FSLDIR}/data/standard/MNI152_T1_2mm_brain.nii.gz
+  --ref_mask=[initial template mask], default=${FSLDIR}/data/standard/MNI152_T1_2mm_brain_mask_dil.nii.gz
+  --anat_dir=<anatomical directory>, e.g. base_dir/subID/anat or base_dir/subID/sesID/anat
+  --subject=<subject ID>, e.g. sub001 
+  --T1w_name=[T1w name], default=T1w
+  --reg_method=[FSL, ANTS], default=FNIRT
+  --fnirt_config=[fnirt configuration], default=${FSLDIR}/etc/flirtsch/T1_2_MNI152_2mm.cnf
+  --ref_nonlinear=[head, brain], default=head
 EOF
 }
 
@@ -32,14 +32,14 @@ fi
 
 # function for parsing options
 getopt1() {
-    sopt="$1"
-    shift 1
-    for fn in $@ ; do
-	if [ `echo $fn | grep -- "^${sopt}=" | wc -w` -gt 0 ] ; then
-	    echo $fn | sed "s/^${sopt}=//"
-	    return 0
-	fi
-    done
+  sopt="$1"
+  shift 1
+  for fn in $@ ; do
+    if [ `echo $fn | grep -- "^${sopt}=" | wc -w` -gt 0 ] ; then
+     echo $fn | sed "s/^${sopt}=//"
+     return 0
+    fi
+  done
 }
 
 defaultopt() {
@@ -68,12 +68,12 @@ ref_nonlinear=`defaultopt ${ref_nonlinear} head`
 
 ## If prior_mask is provided, make sure prior_anat is also provided
 if [ ! ${reg_method} = "FSL" ] || [ ! ${reg_method} = "ANTS" ]; then
-        Error "Specify registration method! FNIRT or ANTS"
-        exit 1
+  Error "Specify registration method! FNIRT or ANTS"
+  exit 1
 fi
 if [ ! ${ref_nonlinear} = "head" ] || [ ! ${ref_nonlinear} = "brain" ]; then
-        Error "Specify reference for nonlinear registration: head(default) or brain"
-        exit 1
+  Error "Specify reference for nonlinear registration: head(default) or brain"
+  exit 1
 fi
 
 ## Setting up logging
@@ -118,11 +118,11 @@ fi
 
 # Link T1w_acpc_dc -> T1w_acpc
 if [ ! -f ${T1w_brain} ]; then
-        pushd ${anat_dir}
-        ln -s ${T1w}_acpc.nii.gz ${T1w}_acpc_dc.nii.gz
-        ln -s ${T1w}_acpc_brain.nii.gz ${T1w}_acpc_dc_brain.nii.gz
-        ln -s ${T1w}_acpc_brain_mask.nii.gz ${T1w}_acpc_dc_brain_mask.nii.gz
-        popd
+  pushd ${anat_dir}
+  ln -s ${T1w}_acpc.nii.gz ${T1w}_acpc_dc.nii.gz
+  ln -s ${T1w}_acpc_brain.nii.gz ${T1w}_acpc_dc_brain.nii.gz
+  ln -s ${T1w}_acpc_brain_mask.nii.gz ${T1w}_acpc_dc_brain_mask.nii.gz
+  popd
 fi
 
 # ----------------------------------------------------
