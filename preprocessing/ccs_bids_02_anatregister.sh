@@ -158,7 +158,7 @@ if [ ${reg_method} = "FSL" ]; then
 
 elif [ ${reg_method} = "ANTS" ]; then
   Note "Registration using ANTS (flirt affine)"
-  Do_cmd flirt -dof 12 -ref ${template_brain} -in ${T1w_brain} -omat ${anat_reg_dir}/acpc2standard.mat -cost corratio-searchcost   corratio -interp spline -out ${anat_reg_dir}/flirt_${T1w_native}_to_standard.nii.gz
+  Do_cmd flirt -dof 12 -ref ${template_brain} -in ${T1w_brain} -omat ${anat_reg_dir}/acpc2standard.mat -cost corratio -searchcost corratio -interp spline -out ${anat_reg_dir}/flirt_${T1w_native}_to_standard.nii.gz
   Do_cmd convert_xfm -omat standard2acpc.mat -inverse acpc2standard.mat
   Do_cmd c3d_affine_tool standard2acpc.mat -ref ${template_brain} -src ${T1w_brain} -fsl2ras -oitk acpc2standard_itk_affine.mat
   Do_cmd antsRegistrationSyN.sh -d 3 -f ${ref_nonlinear} -m ${native_image} -i acpc2standard_itk_affine.mat -t so -o ${T1w_image}_to_template_
