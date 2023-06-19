@@ -102,7 +102,8 @@ echo ----------------------------------------------------
 echo  PREPROCESSING ANATOMICAL SCAN - ACPC alignment
 echo ----------------------------------------------------
 cwd=$( pwd )
-Do_cmd mkdir ${anat_dir}/reg
+acpc_reg_dir=${anat_dir}/xfms
+Do_cmd mkdir ${acpc_reg_dir}
 Do_cmd cd ${anat_dir}
 
 # create Sympolic link to the mask selected
@@ -110,14 +111,14 @@ ln -s mask/brain_mask_${mask_select}.nii.gz ${T1w}_brain_mask.nii.gz
 Do_cmd fslmaths ${anat_dir}/${T1w}.nii.gz -mas ${T1w_brain_mask} ${anat_dir}/${T1w}_brain.nii.gz
 
 ## ACPC alignment
-Do_cmd flirt -in ${anat_dir}/${T1w}_brain.nii.gz -ref ${template_brain} -omat ${anat_dir}/reg/orig2std_dof12.mat -dof 12
-Do_cmd flirt -interp spline -in ${anat_dir}/${T1w}_brain.nii.gz -ref ${template_brain} -applyxfm -init ${anat_dir}/reg/orig2std_dof12.mat -out ${anat_dir}/reg/orig2std_dof12.nii.gz
-Do_cmd flirt -in ${anat_dir}/${T1w}_brain.nii.gz -ref ${anat_dir}/reg/orig2std_dof12.nii.gz -out ${anat_dir}/reg/${T1w}_acpc_step1.nii.gz -dof 6 -omat ${anat_dir}/reg/acpc_step1.mat
-Do_cmd flirt -in ${anat_dir}/reg/${T1w}_acpc_step1.nii.gz -ref ${anat_dir}/reg/orig2std_dof12.nii.gz -out ${anat_dir}/reg/${T1w}_acpc_step2.nii.gz -dof 6 -omat ${anat_dir}/reg/acpc_step2.mat
-Do_cmd convert_xfm -omat ${anat_dir}/reg/acpc.mat -concat ${anat_dir}/reg/acpc_step2.mat ${anat_dir}/reg/acpc_step1.mat
-Do_cmd aff2rigid ${anat_dir}/reg/acpc.mat ${anat_dir}/reg/acpc.mat
-Do_cmd flirt -interp spline -in ${anat_dir}/${T1w}.nii.gz -ref ${template_brain} -applyxfm -init ${anat_dir}/reg/acpc.mat -out ${anat_dir}/${T1w}_acpc.nii.gz
-Do_cmd flirt -interp nearestneighbour -in ${anat_dir}/${T1w}_brain_mask.nii.gz -ref ${template_brain} -applyxfm -init ${anat_dir}/reg/acpc.mat -out ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz
+Do_cmd flirt -in ${anat_dir}/${T1w}_brain.nii.gz -ref ${template_brain} -omat ${acpc_reg_dir}/orig2std_dof12.mat -dof 12
+Do_cmd flirt -interp spline -in ${anat_dir}/${T1w}_brain.nii.gz -ref ${template_brain} -applyxfm -init ${acpc_reg_dir}/orig2std_dof12.mat -out ${acpc_reg_dir}/orig2std_dof12.nii.gz
+Do_cmd flirt -in ${anat_dir}/${T1w}_brain.nii.gz -ref ${acpc_reg_dir}/orig2std_dof12.nii.gz -out ${acpc_reg_dir}/${T1w}_acpc_step1.nii.gz -dof 6 -omat ${acpc_reg_dir}/acpc_step1.mat
+Do_cmd flirt -in ${acpc_reg_dir}/${T1w}_acpc_step1.nii.gz -ref ${acpc_reg_dir}/orig2std_dof12.nii.gz -out ${acpc_reg_dir}/${T1w}_acpc_step2.nii.gz -dof 6 -omat ${acpc_reg_dir}/acpc_step2.mat
+Do_cmd convert_xfm -omat ${acpc_reg_dir}/acpc.mat -concat ${acpc_reg_dir}/acpc_step2.mat ${acpc_reg_dir}/acpc_step1.mat
+Do_cmd aff2rigid ${acpc_reg_dir}/acpc.mat ${acpc_reg_dir}/acpc.mat
+Do_cmd flirt -interp spline -in ${anat_dir}/${T1w}.nii.gz -ref ${template_brain} -applyxfm -init ${acpc_reg_dir}/acpc.mat -out ${anat_dir}/${T1w}_acpc.nii.gz
+Do_cmd flirt -interp nearestneighbour -in ${anat_dir}/${T1w}_brain_mask.nii.gz -ref ${template_brain} -applyxfm -init ${acpc_reg_dir}/acpc.mat -out ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz
 Do_cmd fslmaths ${anat_dir}/${T1w}_acpc.nii.gz -mas ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz ${anat_dir}/${T1w}_acpc_brain.nii.gz
 
 ## Get back to the directory
