@@ -12,9 +12,10 @@ Usage() {
 ${0}: Registration
 
 Usage: ${0}
-  --ref_head=[template head ], default=${FSLDIR}/data/standard/MNI152_T1_2mm.nii.gz
+  --ref_head=[template head], default=${FSLDIR}/data/standard/MNI152_T1_2mm.nii.gz
   --ref_brain=[initial template mask], default=${FSLDIR}/data/standard/MNI152_T1_2mm_brain.nii.gz
   --ref_mask=[initial template mask], default=${FSLDIR}/data/standard/MNI152_T1_2mm_brain_mask_dil.nii.gz
+  --ref_highres=[template write out], default=${FSLDIR}/data/standard/MNI152_T1_1mm_brain.nii.gz
   --anat_dir=<anatomical directory>, e.g. base_dir/subID/anat or base_dir/subID/sesID/anat
   --subject=<subject ID>, e.g. sub001 
   --T1w_name=[T1w name], default=T1w
@@ -51,6 +52,7 @@ source ${CCSPIPELINE_DIR}/global/utilities.sh
 template_head=`getopt1 "--ref_head" $@`
 template_brain=`getopt1 "--ref_brain" $@`
 template_mask=`getopt1 "--ref_mask" $@`
+template_highres=`getopt1 "--ref_highres" $@`
 anat_dir=`getopt1 "--anat_dir" $@`
 subject=`getopt1 "--subject" $@`
 T1w=`getopt1 "--T1w_name" $@`
@@ -61,6 +63,7 @@ fnirt_config=`getopt1 "--fnirt_config" $@`
 template_head=`defaultopt ${template_head} ${FSLDIR}/data/standard/MNI152_T1_2mm.nii.gz`
 template_brain=`defaultopt ${template_init_mask} ${FSLDIR}/data/standard/MNI152_T1_2mm_brain.nii.gz`
 template_mask=`defaultopt ${template_init_mask} ${FSLDIR}/data/standard/MNI152_T1_2mm_brain_mask_dil.nii.gz`
+template_highres=`defaultopt ${template_highres} ${FSLDIR}/data/standard/MNI152_T1_1mm_brain.nii.gz`
 T1w=`defaultopt ${T1w} T1w`
 reg_method=`defaultopt ${reg_method} FSL`
 fnirt_config=`defaultopt ${fnirt_config} ${FSLDIR}/etc/flirtsch/T1_2_MNI152_2mm.cnf`
@@ -104,8 +107,8 @@ T1w_image=${T1w}_acpc_dc
 T1w_head=${anat_dir}/${T1w_image}.nii.gz
 T1w_brain=${anat_dir}/${T1w_image}_brain.nii.gz
 T1w_mask=${anat_dir}/${T1w_image}_brain_mask.nii.gz
-RegTransform=acpc_dc2standard.nii.gz
-RegInvTransform=standard2acpc_dc.nii.gz
+RegTransform=${anat_reg_dir}/acpc_dc2standard.nii.gz
+RegInvTransform=${anat_reg_dir}/standard2acpc_dc.nii.gz
 
 if [ ${ref_nonlinear} = "brain" ]; then
   native_image=${T1w_brain}
@@ -133,11 +136,19 @@ vcheck_reg() {
   figout=$3
   mkdir -p $(dirname ${figout})/tmp
   pushd $(dirname ${figout})/tmp
+  rm -f tmp_edge.nii.gz
   3dedgedog -input ${edge_image} -prefix tmp_edge.nii.gz
   overlay 1 1 ${underlay} -a tmp_edge.nii.gz 1 1 tmp_rendered.nii.gz
-  slicer tmp_rendered.nii.gz -S 10 1200 ${figout}
+  slicer tmp_rendered -s 2 \
+    -x 0.30 sla.png -x 0.45 slb.png -x 0.50 slc.png -x 0.55 sld.png -x 0.70 sle.png \
+    -y 0.30 slg.png -y 0.40 slh.png -y 0.50 sli.png -y 0.60 slj.png -y 0.70 slk.png \
+    -z 0.30 slm.png -z 0.40 sln.png -z 0.50 slo.png -z 0.60 slp.png -z 0.70 slq.png  
+  pngappend sla.png + slb.png + slc.png + sld.png  + sle.png render_vcheck1.png 
+  pngappend slg.png + slh.png + sli.png + slj.png  + slk.png render_vcheck2.png
+  pngappend slm.png + sln.png + slo.png + slp.png  + slq.png render_vcheck3.png
+  pngappend render_vcheck1.png - render_vcheck2.png - render_vcheck3.png ${figout}
   popd
-  rm -f $(dirname ${figout})/tmp
+  rm -r $(dirname ${figout})/tmp
 }
 # ----------------------------------------------------
 
@@ -149,15 +160,15 @@ echo -----------------------------------------
 pushd ${anat_reg_dir}
 if [ ${reg_method} = "FSL" ]; then
   Note "Registration using FSL"
-  if [ ! -f ${anat_reg_dir}/standard2acpc.mat ]; then
+
   Do_cmd flirt -dof 12 -ref ${template_brain} -in ${T1w_brain} -omat ${anat_reg_dir}/acpc2standard.mat -cost corratio -searchcost corratio -interp spline -out ${anat_reg_dir}/flirt_${T1w_image}_to_standard.nii.gz
   Do_cmd convert_xfm -omat standard2acpc.mat -inverse acpc2standard.mat
-  fi
   Do_cmd fnirt --in=${native_image} --ref=${ref_nonlinear} --aff=acpc2standard.mat --refmask=${template_mask} --fout=${RegTransform} --jout=NonlinearRegJacobians.nii.gz --refout=IntensityModulatedT1nii.gz --iout=fnirt_${T1w_image}_to_standard.nii.gz --logout=NonlinearReg.txt --intout=NonlinearIntensities.nii.gz --cout=NonlinearReg.nii.gz --config=${fnirt_config}
   Do_cmd invwarp -w ${RegTransform} -o ${RegInvTransform} -r ${template_head}
 
 elif [ ${reg_method} = "ANTS" ]; then
   Note "Registration using ANTS (flirt affine)"
+
   Do_cmd flirt -dof 12 -ref ${template_brain} -in ${T1w_brain} -omat ${anat_reg_dir}/acpc2standard.mat -cost corratio -searchcost corratio -interp spline -out ${anat_reg_dir}/flirt_${T1w_image}_to_standard.nii.gz
   Do_cmd convert_xfm -omat standard2acpc.mat -inverse acpc2standard.mat
   Do_cmd c3d_affine_tool standard2acpc.mat -ref ${template_brain} -src ${T1w_brain} -fsl2ras -oitk acpc2standard_itk_affine.mat
@@ -167,7 +178,6 @@ elif [ ${reg_method} = "ANTS" ]; then
   Do_cmd antsApplyTransforms -d 3 -i ${native_image} -r ${ref_nonlinear} -t ${T1w_image}_to_template_1Warp.nii.gz -t acpc2standard_itk_affine.mat -o [ANTs_CombinedWarp.nii.gz,1] 
   # combine inverse warps in the order A1, W1
   Do_cmd antsApplyTransforms -d 3 -i ${native_image} -r ${ref_nonlinear} -t [acpc2standard_itk_affine.mat,1] -t ${T1w_image}_to_template_1InverseWarp.nii.gz -o [ANTs_CombinedInvWarp.nii.gz,1]
-
 
   #Conversion of ANTs to FSL format
   Note " ANTs to FSL warp conversion"
@@ -184,25 +194,24 @@ elif [ ${reg_method} = "ANTS" ]; then
   Do_cmd fslmerge -t ${RegTransform} e1.nii.gz e-2.nii.gz e3.nii.gz
   # merge to get FSL format Inverse warps
   Do_cmd fslmerge -t ${RegInvTransform} e1inv.nii.gz e-2inv.nii.gz e3inv.nii.gz
+
   # Combine the inverse warps and get it in FSL format
-  # create Jacobian determinant
+  # create Jacobian determinant: error needs to be fixed
   Do_cmd CreateJacobianDeterminantImage 3 ${RegTransform} NonlinearRegJacobians.nii.gz [doLogJacobian=0] [useGeometric=0]
 
 fi
 popd
 
 # applywarp to native space to template space T1w_acpc_* 
-Do_cmd applywarp --rel --interp=spline -i ${T1w_head} -r ${template_head} -w ${RegTransform} -o ${atlas_space_dir}/${T1w_image}.nii.gz
-Do_cmd applywarp --rel --interp=nn -i ${T1w_mask} -r ${template_head} -w ${RegTransform} -o ${atlas_space_dir}/${T1w_image}_brain_mask.nii.gz
+Do_cmd applywarp --rel --interp=spline -i ${T1w_head} -r ${template_highres} -w ${RegTransform} -o ${atlas_space_dir}/${T1w_image}.nii.gz
+Do_cmd applywarp --rel --interp=nn -i ${T1w_mask} -r ${template_highres} -w ${RegTransform} -o ${atlas_space_dir}/${T1w_image}_brain_mask.nii.gz
 Do_cmd fslmaths ${atlas_space_dir}/${T1w_image}.nii.gz -mas ${atlas_space_dir}/${T1w_image}_brain_mask.nii.gz ${atlas_space_dir}/${T1w_image}_brain.nii.gz
 
 
-if [ ! -f ${anat_reg_dir}/vcheck/figure_acpc2standard_AnatBoundary.png ]; then
-  Do_cmd mkdir -f ${anat_reg_dir}/vcheck
-  Do_cmd vcheck_reg ${atlas_space_dir}/${T1w_image}.nii.gz ${template_brain} ${anat_reg_dir}/vcheck/figure_acpc2standard_RefBoundary.png
-  Do_cmd vcheck_reg ${template_head} ${atlas_space_dir}/${T1w_image}_brain.nii.gz ${anat_reg_dir}/vcheck/figure_acpc2standard_AnatBoundary.png
-else
-  Note "Vcheck figures for the registration have been done for this session!"
-fi
+
+Do_cmd mkdir -p ${anat_reg_dir}/vcheck
+Do_cmd vcheck_reg ${atlas_space_dir}/${T1w_image}.nii.gz ${template_highres} ${anat_reg_dir}/vcheck/figure_acpc2standard_with_template_boundary.png
+Do_cmd vcheck_reg ${template_highres} ${atlas_space_dir}/${T1w_image}_brain.nii.gz ${anat_reg_dir}/vcheck/figure_template_with_acpc2standard_boundary.png
+
 
 cd ${cwd}
