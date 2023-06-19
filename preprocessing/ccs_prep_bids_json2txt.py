@@ -16,16 +16,15 @@ if __name__=='__main__':
     # Required Option
     required.add_argument('-i', '--in_json', required=True, type=str, help='Path of the BIDS json file')
     required.add_argument('-o', '--out', required=True, type=str, help='Path of text file to save the json infomation')
-    required.add_argument('-key', '--key', required=True, type=str, help='Keyword of attribute to extract, e.g.  SliceTiming')
-    required.add_argument('-f', '--format', required=True, type=str, help='Format to save the json info to the text file, e.g. %.8f')
-
-
+    required.add_argument('-k', '--key', required=True, type=str, help='Keyword of attribute to extract, e.g.  SliceTiming')
+    required.add_argument('-f', '--format', required=True, type=str, help='Format to save the json info to the text file, e.g. %%.8f')
     parser._action_groups.append(optional)
     if len(sys.argv)==1:
         parser.print_help()
         sys.exit(1)
     args = parser.parse_args()
-
+  
+    # ------------------------------------------------------------------------------------
     print("+>> Extract %s Info" % args.key)
     print(args.in_json)
 
