@@ -3,7 +3,7 @@
 ##########################################################################################################################
 ## CCS SCRIPT TO PREPROCESS THE ANATOMICAL SCAN (INTEGRATE AFNI/FSL/FREESURFER/ANTS)
 ## Revised from https://github.com/zuoxinian/CCS
-## Ting Xu, Denoise using ANTS; T1w and masks are all in raw space
+## Ting Xu, registration using ANTS for FNIRT, choose brain or head for the registration
 ##########################################################################################################################
 
 Usage() {
