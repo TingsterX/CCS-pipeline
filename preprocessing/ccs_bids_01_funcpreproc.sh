@@ -90,23 +90,12 @@ Note "rm_exist=            ${rm_exist}"
 echo "------------------------------------------------"
 
 
-anat_ref_head=${anat_dir}/${anat_ref_name}_acpc_dc.nii.gz
-anat_ref_brain=${anat_dir}/${anat_ref_name}_acpc_dc_brain.nii.gz
-anat_ref_mask=${anat_dir}/${anat_ref_name}_acpc_dc_mask.nii.gz
 func_min_dir=${func_dir}/${func_min_dir_name}
 
-# ----------------------------------------------------
+## ----------------------------------------------------
+## Check the input data
 if [ ! -f ${func_dir}/${func}.nii.gz ] || [ ! -f ${func_dir}/${func}.json ]; then
   Error "Input data ${func_dir}/${func}.nii.gz or ${func}.json does not exist"
-  exit 1
-fi
-
-## If anat directory exist, check anat and anat_mask
-if [ -z ${anat_dir} ]; then
-  Error "Specify the preprocessed anatomical directory"
-  exit 1
-elif [ ! -e ${anat_ref_head} ] && [ ! -e ${anat_ref_brain} ] && [ ! -e ${anat_ref_mask} ]; then
-  Error "${anat_ref_head} and/or ${anat_ref_mask} are/is in specified anatomical directory"
   exit 1
 fi
 
