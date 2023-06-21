@@ -113,7 +113,8 @@ fi
 ## Extract the slicetiming information
 if [ ${do_slicetiming} = "true" ] then
   if [ $slicetiming_info = "json" ]; then
-      ${CCSPIPELINE_DIR}/preprocessing/ccspy_bids_json2txt.py -i ${func_dir}/${func}.json -o ${func_dir}/SliceTiming.txt -k SliceTiming -f %.8f
+      ${CCSPIPELINE_DIR}/preprocessing/ccspy_bids_json2txt.py \
+      -i ${func_dir}/${func}.json -o ${func_dir}/SliceTiming.txt -k SliceTiming -f %.8f
       tpattern="@${tpattern_file}"
   elif [ -e $slicetiming_info ]; then
     tpattern="@${tpattern_file}"
@@ -124,7 +125,8 @@ fi
 
 ## Extract the TR
 if [ $TR_info = "json" ]; then
-  ${CCSPIPELINE_DIR}/preprocessing/ccspy_bids_json2txt.py -i ${func_dir}/${func}.json -o ${func_dir}/TR.txt -k TR -f %.8f
+  ${CCSPIPELINE_DIR}/preprocessing/ccspy_bids_json2txt.py \
+  -i ${func_dir}/${func}.json -o ${func_dir}/TR.txt -k RepetitionTime -f %.8f
   TR=`cat ${func_dir}/TR.txt`
 elif [[ $TR_info =~ ^[0-9]+([.][0-9]+)?$ ]]; then
   TR=${TR_info}  
