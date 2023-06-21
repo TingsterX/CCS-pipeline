@@ -1,257 +1,241 @@
 #!/usr/bin/env bash
 
 ##########################################################################################################################
-## CCS SCRIPT TO PREPROCESS THE FUNCTIONAL SCAN (INTEGRATE AFNI AND FSL)
-## Xi-Nian Zuo (zuoxinian@gmail.com). Aug. 13, 2011; Revised at IPCAS, Feb. 12, 2013.
-## Ting Xu 202204, BIDS format input
-## Note: anat_dir/reg/highres.nii.gz
+## Revised from https://github.com/zuoxinian/CCS
+## Ting Xu, functional preprocessing
 ##########################################################################################################################
 
-while test $# -gt 0; do
-  case "$1" in
-    -h|--help)
-      shift
-      echo ""
-      exit 0
-      ;;
-    -r)
-      shift
-      if test $# -gt 0; then
-        export rest=$1
-      else
-        echo "Need to specify resting state scan name"
-      fi
-      shift
-      ;;
-    -d)
-      shift
-      if test $# -gt 0; then
-        export base_directory=$1
-      else
-        echo "Need to specify input working directory (path/to/subject_folder)"
-      fi
-      shift
-      ;;
-    --n-vols*)
-      shift
-			if test $# -gt 0; then
-				export ndvols=`echo $1 | sed -e 's/^[^=]*=//g'`
-			else
-				echo "Need to specify subject number (sub-******)"
-			fi
-			shift
-			;;
-    --subject*)
-      shift
-			if test $# -gt 0; then
-				export subject=`echo $1 | sed -e 's/^[^=]*=//g'`
-			else
-				echo "Need to specify subject number (sub-******)"
-			fi
-			shift
-			;;
-    --session*)
-			shift
-			if test $# -gt 0; then
-				export session=`echo $1 | sed -e 's/^[^=]*=//g'`
-			else
-				echo "Need to specify session number"
-			fi
-			shift
-			;;
-    --run*)
-			shift
-			if test $# -gt 0; then
-				export run=`echo $1 | sed -e 's/^[^=]*=//g'`
-			else
-				echo "Need to specify session number"
-			fi
-			shift
-			;;
-    --mask)
-      export input_mask=true
-      shift
-      ;;
-    *)
-      exit 0
-  esac
-done
+Usage() {
+	cat <<EOF
+
+${0}: Registration
+
+Usage: ${0}
+  --func_dir=<functional directory>, e.g. base_dir/subID/func/sub-X_task-X/
+  --func_name=[func], name of the functional data, default=func (e.g. <func_dir>/func.nii.gz)
+  --example_volume=[8], the n-th volume as the example (Scout) func image, default=8-th 
+  --drop_volume=[n], drop the first n volumes, default=5
+  --slicetiming=[true, false], do slicetiming correction, default=true, make sure the infomation is correct in the json file
+  --slicetiming_info=[json, 1D temporal offset file, tpattern recognizable in 3dTshift], default=json (<func_dir>/func.json)
+  --TR_info=[json, TR in sec], specify TR in second, or read TR from json file, default=json (<func_dir>/func.json)
+  --despiking=[true, false], do despiking, default=true
+  --func_min_dir_name=[func_minimal], default=func_minimal
+  --rm_exist=[true, false], clear up all existing preprocessed files and re-do this step.
+EOF
+}
+
+# Return a Usage statement
+if [ "$#" = "0" ]; then
+    Usage
+    exit 1
+fi
+
+# function for parsing options
+getopt1() {
+  sopt="$1"
+  shift 1
+  for fn in $@ ; do
+    if [ `echo $fn | grep -- "^${sopt}=" | wc -w` -gt 0 ] ; then
+     echo $fn | sed "s/^${sopt}=//"
+     return 0
+    fi
+  done
+}
+
+defaultopt() {
+    echo $1
+}
+
+source ${CCSPIPELINE_DIR}/global/utilities.sh
+## arguments pasting
+func_dir=`getopt1 "--func_dir" $@`
+func_name=`getopt1 "--func_name" $@`
+ndvols=`getopt1 "--drop_volume" $@`
+example_volume=`getopt1 "--example_volume" $@`
+do_slicetiming=`getopt1 "--slicetiming" $@`
+do_despiking=`getopt1 "--despiking" $@`
+func_min_dir_name=`getopt1 "--out_dir_name" $@`
+slicetiming_info=`getopt1 "--slicetiming_info" $@`
+TR_info=`getopt1 "--TR_info" $@`
+rm_exist=`getopt1 "--rm_exist" $@`
 
 
-exec > >(tee "Logs/${subject}/01_funcpreproc_log.txt") 2>&1
-set -x 
+## default parameter
+func=`defaultopt ${func_name} func`
+ndvols=`defaultopt ${ndvols} 5`
+example_volume=`defaultopt ${example_volume} 8`
+do_slicetiming=`defaultopt ${do_slicetiming} true`
+do_despiking=`defaultopt ${do_despiking} false`
+func_min_dir_name=`defaultopt ${func_min_dir_name} func_minimal`
+slicetiming_info=`defaultopt ${do_slicetiming} json`
+TR_info=`defaultopt ${TR_info} json`
+rm_exist=`defaultopt ${rm_exist} true`
 
-## Set up common dirs
-anat_dir=${base_directory}/${subject}/${session}/anat
-func_dir=${base_directory}/${subject}/${session}/func
-func_min_dir_name=func_minimal
-highres_rpi=${anat_dir}/reg/highres_rpi.nii.gz
-func_min_dir=${base_directory}/${subject}/${session}/${func_min_dir_name}
+## Setting up logging
+#exec > >(tee "Logs/${func_dir}/${0/.sh/.txt}") 2>&1
+#set -x 
+
+## Show parameters in log file
+Title "func preprocessing step 1: minimal preprocessing"
+Note "func_name=           ${func}"
+Note "func_dir=            ${func_dir}"
+Note "example_volume=      ${example_volume}"
+Note "drop_volume=         ${ndvols}"
+Note "despiking            ${do_despiking}"
+Note "slicetiming=         ${do_slicetiming}"
+Note "slicetiming_info=    ${slicetiming_info}"
+Note "TR_info=             ${TR_info}"
+Note "out_dir_name=        ${func_min_dir_name}"
+Note "rm_exist=            ${rm_exist}"
+echo "------------------------------------------------"
 
 
-if [ -z $if_redo ]; then if_redo=false; fi
-if [ -z $if_cleanup ]; then if_cleanup=true; fi
+anat_ref_head=${anat_dir}/${anat_ref_name}_acpc_dc.nii.gz
+anat_ref_brain=${anat_dir}/${anat_ref_name}_acpc_dc_brain.nii.gz
+anat_ref_mask=${anat_dir}/${anat_ref_name}_acpc_dc_mask.nii.gz
+func_min_dir=${func_dir}/${func_min_dir_name}
+
+# ----------------------------------------------------
+if [ ! -f ${func_dir}/${func}.nii.gz ] || [ ! -f ${func_dir}/${func}.json ]; then
+  Error "Input data ${func_dir}/${func}.nii.gz or ${func}.json does not exist"
+  exit 1
+fi
+
+## If anat directory exist, check anat and anat_mask
+if [ -z ${anat_dir} ]; then
+  Error "Specify the preprocessed anatomical directory"
+  exit 1
+elif [ ! -e ${anat_ref_head} ] && [ ! -e ${anat_ref_brain} ] && [ ! -e ${anat_ref_mask} ]; then
+  Error "${anat_ref_head} and/or ${anat_ref_mask} are/is in specified anatomical directory"
+  exit 1
+fi
+
+## Extract the slicetiming information
+if [ ${do_slicetiming} = "true" ] then
+  if [ $slicetiming_info = "json" ]; then
+      ${CCSPIPELINE_DIR}/preprocessing/ccspy_bids_json2txt.py -i ${func_dir}/${func}.json -o ${func_dir}/SliceTiming.txt -k SliceTiming -f %.8f
+      tpattern="@${tpattern_file}"
+  elif [ -e $slicetiming_info ]; then
+    tpattern="@${tpattern_file}"
+  else
+    tpattern=$slicetiming_info
+  fi
+fi
+
+## Extract the TR
+if [ $TR_info = "json" ]; then
+  ${CCSPIPELINE_DIR}/preprocessing/ccspy_bids_json2txt.py -i ${func_dir}/${func}.json -o ${func_dir}/TR.txt -k TR -f %.8f
+  TR=`cat ${func_dir}/TR.txt`
+elif [[ $TR_info =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+  TR=${TR_info}  
+fi
+
+#####################################################################################################################
+#exec > >(tee "Logs/${subject}/${0/.sh/.txt}") 2>&1
+#set -x 
 
 cwd=$( pwd )
 
 ## Setup the working directory and mkdir
 mkdir -p ${func_min_dir}/reg4mask
+
 pushd ${func_min_dir}
-if [ -f ${rest}.nii.gz ]; then rm ${rest}.nii.gz; fi
-ln -s ${func_dir}/${rest}.nii.gz ${rest}.nii.gz 
+if [ -f ${func}.nii.gz ]; then rm ${func}.nii.gz; fi
+ln -s ${func_dir}/${func}.nii.gz ${func}.nii.gz 
 popd
 
 echo "---------------------------------------"
 echo "!!!! PREPROCESSING FUNCTIONAL SCAN !!!!"
 echo "---------------------------------------"
 
-## Setup the TR and SliceTiming Pattern
-if [ -z $tpattern_file ]; then
-  tpattern="none"
-else 
-  nline=`cat ${tpattern_file} | wc -l`
-  if [ $nline -gt 1 ]; then
-    tpattern="@${tpattern_file}"
-  else
-    tpattern=`cat ${tpattern_file}`
-  fi
-fi
-
 cd ${func_min_dir}
 ## If rerun everything
-if [[ ${if_redo} == "true" ]]; then
-	echo -----------------------------------------------------------
-	echo "!!! Clean up the existing files and RE-RUN funcpreproc step"
-	echo -----------------------------------------------------------
-	rm -f ${rest}_dr.nii.gz ${rest}_dspk.nii.gz ${rest}_ts.nii.gz ${rest}_ro.nii.gz ${rest}_ro_mean.nii.gz ${rest}_mc.nii.gz ${rest}_mc.1D ${rest}_mask.initD.nii.gz ${rest}_pp_mask.nii.gz example_func.nii.gz example_func_brain.nii.gz example_func_bc.nii.gz example_func_brain_bc.nii.gz
-        rm reg4mask
+if [[ ${rm_exist} == "true" ]]; then
+	Title "!!! Clean up the existing preprocessed data and Run funcpreproc step"
+	rm -f ${func}_dr.nii.gz ${func}_dspk.nii.gz ${func}_ts.nii.gz ${func}_ro.nii.gz ${func}_ro_mean.nii.gz ${func}_mc.nii.gz ${func}_mc.1D example_func.nii.gz example_func_bc.nii.gz
 else
-	echo -----------------------------------------------------------
-	echo "!!! The existing preprocessed files will be used, if any "
-	echo -----------------------------------------------------------
+	Title "!!! The existing preprocessed files will be used, if any "
 fi
 
 ## 0. Dropping first # TRS
-if [[ ! -f ${rest}_dr.nii.gz ]]; then
-  echo "Dropping first ${ndvols} vols"
-  nvols=`fslnvols ${rest}.nii.gz`
+if [[ ! -f ${func}_dr.nii.gz ]]; then
+  Note "Dropping first ${ndvols} vols"
+  nvols=`fslnvols ${func}.nii.gz`
   ## first timepoint (remember timepoint numbering starts from 0)
   TRstart=${ndvols} 
   ## last timepoint
   let "TRend = ${nvols} - 1"
-  3dcalc -a ${rest}.nii.gz[${TRstart}..${TRend}] -expr 'a' -prefix ${rest}_dr.nii.gz -datum float
-  3drefit -TR ${TR} ${rest}_dr.nii.gz
+  3dcalc -a ${func}.nii.gz[${TRstart}..${TRend}] -expr 'a' -prefix ${func}_dr.nii.gz -datum float
+  3drefit -TR ${TR} ${func}_dr.nii.gz
 else
-  echo "Dropping first ${ndvols} TRs (done, skip)"
+  Note "Dropping first ${ndvols} TRs (done, skip)"
 fi
 
 ## 1. Despiking (particular helpful for motion)
-if [[ ! -f ${rest}_dspk.nii.gz ]]; then
-  #echo "Despiking timeseries for this func dataset"
-  #3dDespike -prefix ${rest}_dspk.nii.gz ${rest}_dr.nii.gz
-  cp ${rest}_dr.nii.gz ${rest}_dspk.nii.gz
+if [ ${do_despiking} = "true" ]; then
+  if [[ ! -f ${func}_dspk.nii.gz ]]; then
+    Note "Despiking timeseries for this func dataset"
+    3dDespike -prefix ${func}_dspk.nii.gz ${func}_dr.nii.gz
+  else
+    Note "Despiking timeseries for this func dataset (done, skip)"
+  fi
+  ts_input=${func}_dspk.nii.gz
 else
-  echo "Despiking timeseries for this func dataset (done, skip)"
+  ts_input=${func}_dr.nii.gz
 fi
 
 ## 2. Slice timing
-if [[ ! -f ${rest}_ts.nii.gz ]] && [[ ${tpattern} != "none" ]]; then
-  echo "Slice timing for this func dataset"
-  3dTshift -prefix ${rest}_ts.nii.gz -tpattern ${tpattern} -tzero 0 ${rest}_dspk.nii.gz
-  echo "Deobliquing this func dataset"
-  3drefit -deoblique ${rest}_ts.nii.gz
+if [ ${do_slicetiming} = "true" ]; then
+  if [[ ! -f ${func}_ts.nii.gz ]]; then
+    Note "Slice timing for this func dataset"
+    3dTshift -prefix ${func}_ts.nii.gz -tpattern ${tpattern} -tzero 0 ${ts_input}
+  else
+    Note "Slice timing for this func dataset (done, skip)"
+  fi
+  ro_input=${func}_ts.nii.gz
 else
-  echo "Slice timing for this func dataset (done, skip)"
+  ro_input=${ts_input}
 fi
 
 ##3. Reorient into fsl friendly space (what AFNI calls RPI)
-if [[ ! -f ${rest}_ro.nii.gz ]] && [[ ${tpattern} != "none" ]]; then
-  echo "Reorienting for this func dataset"
-  3dresample -orient RPI -inset ${rest}_ts.nii.gz -prefix ${rest}_ro.nii.gz
-elif [[ ! -f ${rest}_ro.nii.gz ]] && [[ ${tpattern} == "none" ]]; then
-  3dresample -orient RPI -inset ${rest}_dspk.nii.gz -prefix ${rest}_ro.nii.gz
+if [[ ! -f ${func}_ro.nii.gz ]]; then
+  #echo "Deobliquing this func dataset"
+  #3drefit -deoblique ${ro_input}
+  Note "Reorienting for this func dataset"
+  3dresample -orient RPI -inset ${ro_input} -prefix ${func}_ro.nii.gz
 else
-  echo "Reorienting for this func dataset (done, skip)"
+  Note "Reorienting for this func dataset (done, skip)"
 fi
 
-##4. Motion correct to average of timeseries
-if [[ ! -f ${rest}_mc.nii.gz ]] || [[ ! -f ${rest}_mc.1D ]]; then
-  echo "Motion correcting for this func dataset"
-  rm -f ${rest}_ro_mean.nii.gz
-  3dTstat -mean -prefix ${rest}_ro_mean.nii.gz ${rest}_ro.nii.gz 
-  3dvolreg -Fourier -twopass -base ${rest}_ro_mean.nii.gz -zpad 4 -prefix ${rest}_mc.nii.gz -1Dfile ${rest}_mc.1D ${rest}_ro.nii.gz
+##4. Motion correct to average of timeseries 
+if [[ ! -f ${func}_mc.nii.gz ]] || [[ ! -f ${func}_mc.1D ]]; then
+  Note "Motion correcting for this func dataset"
+  rm -f ${func}_ro_mean.nii.gz
+  3dTstat -mean -prefix ${func}_ro_mean.nii.gz ${func}_ro.nii.gz 
+  3dvolreg -Fourier -twopass -base ${func}_ro_mean.nii.gz -zpad 4 -prefix ${func}_mc.nii.gz -1Dfile ${func}_mc.1D -1Dmatrix_save ${func}_mc.affine.1D ${func}_ro.nii.gz
 else
-  echo "Motion correcting for this func dataset (done, skip)"
+  Note "Motion correcting for this func dataset (done, skip)"
 fi
 
 ##5 Extract one volume as an example_func (Lucky 8)
 if [[ ! -f example_func.nii.gz ]]; then
   echo "Extract one volume (No.8) as an example_func"
-  fslroi ${rest}_mc.nii.gz example_func.nii.gz 7 1
+  let "n_example=${example_volume}-1"
+  fslroi ${func}_mc.nii.gz example_func.nii.gz ${n_example} 1
 else
   echo "Extract one volume (No.8) as an example_func (done, skip)"
 fi
 
-##6 Bias Field Correction (used for alignment only)
+##6 Bias Field Correction (output is used for alignment only)
 if [[ ! -f example_func_bc.nii.gz ]]; then
   echo "N4 Bias Field Correction, used for alignment only"
-	fslmaths ${rest}_mc.nii.gz -Tmean tmp_func_mc_mean.nii.gz
+	fslmaths ${func}_mc.nii.gz -Tmean tmp_func_mc_mean.nii.gz
 	N4BiasFieldCorrection -i tmp_func_mc_mean.nii.gz -o tmp_func_bc.nii.gz
-	fslmaths tmp_func_mc_mean.nii.gz -sub tmp_func_bc.nii.gz ${rest}_biasfield.nii.gz
-	fslmaths example_func.nii.gz -sub ${rest}_biasfield.nii.gz example_func_bc.nii.gz
+	fslmaths tmp_func_mc_mean.nii.gz -sub tmp_func_bc.nii.gz ${func}_biasfield.nii.gz
+	fslmaths example_func.nii.gz -sub ${func}_biasfield.nii.gz example_func_bc.nii.gz
 	rm tmp_func_mc_mean.nii.gz tmp_func_bc.nii.gz
 else
-  echo "N4 Bias Field Correction, used for alignment only. (done, skip)"
-fi
-
-##7 Initial func_pp_mask.init
-
-## CHANGE:
-## - Linear registration works well for the brain, not the head
-## - Head-to-head not the best solution for co-registration step to get anatomical into functional space (for masking)
-## - Start with bad mask first, then iterate, update the mask over and over
-## - Don't need to use the $input_mask option, just use the old code
-
-if [[ $input_mask = "true" ]]; then
-  if [[ -f example_func_bc.nii.gz ]]; then
-    flirt -in ${anat_dir}/reg/highres_head.nii.gz -ref example_func_bc.nii.gz -dof 6 -out highres_head2example_func.nii.gz -omat highres_head2example_func.mat
-    flirt -in ${anat_dir}/reg/highres.nii.gz -ref example_func_bc.nii.gz -dof 6 -applyxfm -init highres_head2example_func.mat -out highres2examplefunc.nii.gz
-    fslmaths highres2examplefunc.nii.gz -bin example_func_mask.nii.gz
-    fslmaths example_func_bc.nii.gz -mas example_func_mask.nii.gz example_func_brain.nii.gz
-  else
-    flirt -in ${anat_dir}/reg/highres_head.nii.gz -ref example_func.nii.gz -dof 6 -out highres_head2example_func.nii.gz -omat highres_head2example_func.mat
-    flirt -in ${anat_dir}/reg/highres.nii.gz -ref example_func.nii.gz -dof 6 -applyxfm -init highres_head2example_func.mat -out highres2examplefunc.nii.gz
-    fslmaths highres2examplefunc.nii.gz -bin example_func_mask.nii.gz
-    fslmaths example_func.nii.gz -mas example_func_mask.nii.gz example_func_brain.nii.gz
-  fi
-else
-  echo "Skull stripping for this func dataset"
-  rm ${rest}_mask.initD.nii.gz
-  3dAutomask -prefix ${rest}_mask.initD.nii.gz -dilate 1 ${rest}_mc.nii.gz
-  if [[ -f example_func_bc.nii.gz ]]; then
-    fslmaths example_func_bc.nii.gz -mas ${rest}_mask.initD.nii.gz tmpbrain.nii.gz
-  else
-    fslmaths example_func.nii.gz -mas ${rest}_mask.initD.nii.gz tmpbrain.nii.gz
-  fi
-  ## anatomical brain as reference to refine the functional mask
-  flirt -ref ${highres_rpi} -in tmpbrain -out reg4mask/example_func2highres_rpi4mask -omat reg4mask/example_func2highres_rpi4mask.mat -cost corratio -dof 6 -interp trilinear 
-  ## Create mat file for conversion from subject's anatomical to functional
-  convert_xfm -inverse -omat reg4mask/highres_rpi2example_func4mask.mat reg4mask/example_func2highres_rpi4mask.mat
-  flirt -ref example_func -in ${highres_rpi} -out tmpT1.nii.gz -applyxfm -init reg4mask/highres_rpi2example_func4mask.mat -interp trilinear
-  fslmaths tmpT1.nii.gz -bin -dilM reg4mask/brainmask2example_func.nii.gz
-  #rm -v tmp*.nii.gz
-  fslmaths ${rest}_mc.nii.gz -Tstd -bin ${rest}_pp_mask.init.nii.gz #Rationale: any voxels with detectable signals should be included as in the global mask
-  fslmaths ${rest}_pp_mask.init.nii.gz -mul ${rest}_mask.initD.nii.gz -mul reg4mask/brainmask2example_func.nii.gz ${rest}_pp_mask.init.nii.gz -odt char
-  fslmaths example_func.nii.gz -mas ${rest}_pp_mask.init.nii.gz example_func_brain.init.nii.gz
-  fslmaths example_func_bc.nii.gz -mas ${rest}_pp_mask.init.nii.gz example_func_brain_bc.init.nii.gz
-fi
-
-## clean up the output
-if [[ ${cleanup} == "true" ]]; then
-  echo "clean up: func_dr (dropping), func_dspk (despike), func_ro (reoriented)"
-  rm -f ${rest}_dr.nii.gz ${rest}_dspk.nii.gz ${rest}_ro.nii.gz ${rest}_ts.nii.gz
-else
-  echo "Minimal preprocessing done (skip)"
+  echo "N4 Bias Field Correction, used for alignment only (done, skip)"
 fi
 
 cd ${cwd}
