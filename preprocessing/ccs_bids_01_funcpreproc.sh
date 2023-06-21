@@ -100,7 +100,7 @@ if [ ! -f ${func_dir}/${func}.nii.gz ] || [ ! -f ${func_dir}/${func}.json ]; the
 fi
 
 ## Extract the slicetiming information
-if [ ${do_slicetiming} = "true" ] then
+if [ ${do_slicetiming} = "true" ]; then
   if [ $slicetiming_info = "json" ]; then
       ${CCSPIPELINE_DIR}/preprocessing/ccspy_bids_json2txt.py \
       -i ${func_dir}/${func}.json -o ${func_dir}/SliceTiming.txt -k SliceTiming -f %.8f
