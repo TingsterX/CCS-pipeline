@@ -178,7 +178,7 @@ else
 fi
 
 Do_cmd fslmaths example_func.nii.gz -mas masks/${func}_mask.nii.gz example_func_brain.nii.gz
-Do_cmd fslmaths example_func_bc.nii.gz -mas masks/${func}_mask.nii.gz example_func_brain_bc.nii.gz
+Do_cmd fslmaths example_func_bc.nii.gz -mas masks/${func}_mask.nii.gz example_func_bc_brain.nii.gz
 
 Do_cmd vcheck_mask example_func_bc.nii.gz masks/${func}_mask.nii.gz masks/${func}_mask.png
 
