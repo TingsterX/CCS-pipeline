@@ -83,7 +83,7 @@ echo "------------------------------------------------"
 T1w_image=${anat_ref_name}_acpc_dc
 anat_ref_head=${anat_dir}/${T1w_image}.nii.gz
 anat_ref_brain=${anat_dir}/${T1w_image}_brain.nii.gz
-anat_ref_mask=${anat_dir}/${T1w_image}_mask.nii.gz
+anat_ref_mask=${anat_dir}/${T1w_image}_brain_mask.nii.gz
 anat_ref_wm4bbr=${anat_dir}/segment/segment_wm+sub+stem.nii.gz
 func_min_dir=${func_dir}/${func_min_dir_name}
 
