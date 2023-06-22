@@ -135,6 +135,9 @@ echo "!!!! PREPROCESSING FUNCTIONAL SCAN !!!!"
 echo "---------------------------------------"
 
 cd ${func_min_dir}
+ln -s ../${func}.nii.gz ${func}.nii.gz
+
+
 ## If rerun everything
 if [[ ${rm_exist} == "true" ]]; then
 	Title "!!! Clean up the existing preprocessed data and Run funcpreproc step"
