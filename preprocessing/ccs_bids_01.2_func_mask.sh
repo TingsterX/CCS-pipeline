@@ -111,10 +111,23 @@ fi
 #exec > >(tee "Logs/${subject}/${0/.sh/.txt}") 2>&1
 #set -x 
 
+# vcheck function 
+vcheck_mask() {
+	underlay=$1
+	overlay=$2
+	figout=$3
+	echo "----->> vcheck mask"
+	Do_cmd overlay 1 1 ${underlay} -a ${overlay} 1 1 tmp_rendered_mask.nii.gz
+	Do_cmd slicer tmp_rendered_mask.nii.gz -S 10 1200 ${figout}
+	Do_cmd rm -f tmp_rendered_mask.nii.gz
+}
+
+
 cwd=$( pwd )
 
 mkdir ${func_min_dir}/masks
 cd ${func_min_dir}
+
 ## Prior mask from 3dAutomask or prior 
 if [[ ${use_automask_prior} = "true" ]]; then
   echo "Skull stripping (3dAutomask) for this func dataset"
@@ -165,5 +178,7 @@ fi
 
 Do_cmd fslmaths example_func.nii.gz -mas masks/${func}_mask.nii.gz example_func_brain.nii.gz
 Do_cmd fslmaths example_func_bc.nii.gz -mas masks/${func}_mask.nii.gz example_func_brain_bc.nii.gz
+
+Do_cmd vcheck_mask example_func_bc.nii.gz masks/${func}_mask.nii.gz masks/${func}_mask.png
 
 cd ${cwd}
