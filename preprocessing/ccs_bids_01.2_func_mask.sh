@@ -102,7 +102,7 @@ elif [ ! -e ${anat_ref_head} ] && [ ! -e ${anat_ref_brain} ] && [ ! -e ${anat_re
   exit 1
 fi
 
-if [ ! -f ${mask_prior} ]; then
+if [ ! -z ${mask_prior} ] && [ ! -f ${mask_prior} ]; then
   Error "The prior mask ${mask_prior} does not exist"
   exit 1
 fi
@@ -124,7 +124,7 @@ if [[ ${use_automask_prior} = "true" ]]; then
   Do_cmd ln -s ${func}_mask.automD.nii.gz ${func}_mask.initD.nii.gz
   Do_cmd popd
 fi
-if [ -f ${mask_prior} ]; then
+if [ ! -z ${mask_prior} ]; then
   rm 
   Do_cmd 3dcopy ${mask_prior} masks/${func}_mask.prior.nii.gz 
   Do_cmd 3dmask_tool -input masks/${func}_mask.prior.nii.gz -dilate_input 1 -prefix masks/${func}_mask.priorD.nii.gz
