@@ -19,7 +19,6 @@ Usage: ${0}
   --use_automask_prior=[true, false], use 3dAutomask to generate a prior mask before refine from anatomical brain
   --mask_prior=[path], use the input (which should be aligned with example_func) as a prior mask before refine from anatomical brain
   --func_min_dir_name=[func_minimal], default=func_minimal
-  --rm_exist=[true, false], clear up all existing preprocessed files and re-do this step.
 EOF
 }
 
@@ -55,7 +54,6 @@ anat_dir=`getopt1 "--anat_dir" $@`
 anat_ref_name=`getopt1 "--anat_ref_name" $@`
 mask_prior=`getopt1 "--mask_prior" $@`
 func_min_dir_name=`getopt1 "--out_dir_name" $@`
-rm_exist=`getopt1 "--rm_exist" $@`
 
 
 ## default parameter
@@ -66,7 +64,6 @@ use_automask_prior=`defaultopt ${use_automask_prior} true`
 use_prior_only=`defaultopt ${use_prior_only} false`
 anat_ref_name=`defaultopt ${anat_ref_name} T1w`
 func_min_dir_name=`defaultopt ${func_min_dir_name} func_minimal`
-rm_exist=`defaultopt ${rm_exist} true`
 
 ## Setting up logging
 #exec > >(tee "Logs/${func_dir}/${0/.sh/.txt}") 2>&1
@@ -94,8 +91,8 @@ anat_ref_wm4bbr=${anat_dir}/segment/segment_wm+sub+stem.nii.gz
 func_min_dir=${func_dir}/${func_min_dir_name}
 
 # ----------------------------------------------------
-if [ ! -f ${func_dir}/example_func_bc.nii.gz ] ; then
-  Error "Input data ${func_dir}/example_func_bc.nii.gz does not exist"
+if [ ! -f ${func_min_dir}/example_func_bc.nii.gz ] ; then
+  Error "Input data ${func_min_dir}/example_func_bc.nii.gz does not exist"
   exit 1
 fi
 
@@ -119,28 +116,29 @@ fi
 
 cwd=$( pwd )
 
-mkdir ${func_dir}/masks
-cd ${func_dir}
+mkdir ${func_min_dir}/masks
+cd ${func_min_dir}
 ## Prior mask from 3dAutomask or prior 
 if [[ ${use_automask_prior} = "true" ]]; then
   echo "Skull stripping (3dAutomask) for this func dataset"
-  Do_cmd rm ${func_dir}/masks/${func}_mask.automD.nii.gz
-  Do_cmd 3dAutomask -prefix ${func_dir}/masks/${func}_mask.automD.nii.gz -dilate 1 ${func_dir}/example_func_bc.nii.gz
-  Do_cmd pushd ${func_dir}/masks
+  Do_cmd rm masks/${func}_mask.automD.nii.gz
+  Do_cmd 3dAutomask -prefix masks/${func}_mask.automD.nii.gz -dilate 1 example_func_bc.nii.gz
+  Do_cmd pushd ${func_min_dir}/masks
   Do_cmd ln -s ${func}_mask.automD.nii.gz ${func}_mask.initD.nii.gz
   Do_cmd popd
 fi
 if [ -f ${mask_prior} ]; then
-  Do_cmd 3dcopy ${mask_prior} ${func_dir}/masks/${func}_mask.prior.nii.gz 
-  Do_cmd 3dmask_tool -input ${func_dir}/masks/${func}_mask.prior.nii.gz -dilate_input 1 -prefix ${func_dir}/masks/${func}_mask.priorD.nii.gz
-  Do_cmd pushd ${func_dir}/masks
+  rm 
+  Do_cmd 3dcopy ${mask_prior} masks/${func}_mask.prior.nii.gz 
+  Do_cmd 3dmask_tool -input masks/${func}_mask.prior.nii.gz -dilate_input 1 -prefix masks/${func}_mask.priorD.nii.gz
+  Do_cmd pushd ${func_min_dir}/masks
   Do_cmd ln -s ${func}_mask.priorD.nii.gz ${func}_mask.initD.nii.gz
   Do_cmd popd
 fi
 
 ## refine the mask from the native anatomical image
 if [ ${use_prior_only} = "false" ]; then
-  if [ ${func_dir}/masks/${func}_mask.initD.nii.gz ]; then
+  if [ ${func_min_dir}/masks/${func}_mask.initD.nii.gz ]; then
     ## anatomical brain as reference to refine the functional mask
     Do_cmd fslmaths example_func_bc.nii.gz -mas ${func}_mask.initD.nii.gz tmpbrain.nii.gz
     # brain to brain initial registration
@@ -157,12 +155,14 @@ if [ ${use_prior_only} = "false" ]; then
     Do_cmd flirt -in example_func_bc.nii.gz -ref ${anat_ref_head} -cost bbr -wmseg ${anat_ref_wm4bbr} -omat masks/xfm_example_func_To_${T1w_image}.mat -dof 6 -init masks/xfm_example_func_To_${T1w_image}.init.mat 
   fi
   Do_cmd convert_xfm -inverse -omat masks/xfm_${T1w_image}_To_example_func.mat masks/xfm_example_func_To_${T1w_image}.mat
-  Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix ${func_dir}/masks/${T1w_image}_maskD.nii.gz
-  Do_cmd flirt -ref example_func.nii.gz -in ${func_dir}/masks/${T1w_image}_maskD.nii.gz -applyxfm -init masks/xfm_${T1w_image}_To_example_func.mat -interp nearestneighbour -out masks/${func}_mask.anatD.nii.gz
+  Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix masks/${T1w_image}_maskD.nii.gz
+  Do_cmd flirt -ref example_func.nii.gz -in masks/${T1w_image}_maskD.nii.gz -applyxfm -init masks/xfm_${T1w_image}_To_example_func.mat -interp nearestneighbour -out masks/${func}_mask.anatD.nii.gz
   # fill holes
+  rm -f masks/${func}_mask.nii.gz
   Do_cmd 3dmask_tool -input masks/${func}_mask.anatD.nii.gz -prefix masks/${func}_mask.nii.gz -fill_holes  
 else
   # Use the prior directly, remove the holes
+  rm -f masks/${func}_mask.nii.gz
   Do_cmd 3dmask_tool -input masks/${func}_mask.prior.nii.gz -prefix masks/${func}_mask.nii.gz -fill_holes
 fi
 
