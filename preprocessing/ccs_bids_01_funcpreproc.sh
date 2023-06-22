@@ -128,12 +128,7 @@ fi
 cwd=$( pwd )
 
 ## Setup the working directory and mkdir
-mkdir -p ${func_min_dir}/reg4mask
-
-pushd ${func_min_dir}
-if [ -f ${func}.nii.gz ]; then rm ${func}.nii.gz; fi
-ln -s ${func_dir}/${func}.nii.gz ${func}.nii.gz 
-popd
+mkdir -p ${func_min_dir}
 
 echo "---------------------------------------"
 echo "!!!! PREPROCESSING FUNCTIONAL SCAN !!!!"
@@ -143,7 +138,7 @@ cd ${func_min_dir}
 ## If rerun everything
 if [[ ${rm_exist} == "true" ]]; then
 	Title "!!! Clean up the existing preprocessed data and Run funcpreproc step"
-	rm -f ${func}_dr.nii.gz ${func}_dspk.nii.gz ${func}_ts.nii.gz ${func}_ro.nii.gz ${func}_ro_mean.nii.gz ${func}_mc.nii.gz ${func}_mc.1D example_func.nii.gz example_func_bc.nii.gz
+	Do_cmd rm -f ${func}_dr.nii.gz ${func}_dspk.nii.gz ${func}_ts.nii.gz ${func}_ro.nii.gz ${func}_ro_mean.nii.gz ${func}_mc.nii.gz ${func}_mc.1D example_func.nii.gz example_func_bc.nii.gz
 else
 	Title "!!! The existing preprocessed files will be used, if any "
 fi
@@ -156,8 +151,8 @@ if [[ ! -f ${func}_dr.nii.gz ]]; then
   TRstart=${ndvols} 
   ## last timepoint
   let "TRend = ${nvols} - 1"
-  3dcalc -a ${func}.nii.gz[${TRstart}..${TRend}] -expr 'a' -prefix ${func}_dr.nii.gz -datum float
-  3drefit -TR ${TR} ${func}_dr.nii.gz
+  Do_cmd 3dcalc -a ${func}.nii.gz[${TRstart}..${TRend}] -expr 'a' -prefix ${func}_dr.nii.gz -datum float
+  Do_cmd 3drefit -TR ${TR} ${func}_dr.nii.gz
 else
   Note "Dropping first ${ndvols} TRs (done, skip)"
 fi
@@ -166,7 +161,7 @@ fi
 if [ ${do_despiking} = "true" ]; then
   if [[ ! -f ${func}_dspk.nii.gz ]]; then
     Note "Despiking timeseries for this func dataset"
-    3dDespike -prefix ${func}_dspk.nii.gz ${func}_dr.nii.gz
+    Do_cmd 3dDespike -prefix ${func}_dspk.nii.gz ${func}_dr.nii.gz
   else
     Note "Despiking timeseries for this func dataset (done, skip)"
   fi
@@ -179,7 +174,7 @@ fi
 if [ ${do_slicetiming} = "true" ]; then
   if [[ ! -f ${func}_ts.nii.gz ]]; then
     Note "Slice timing for this func dataset"
-    3dTshift -prefix ${func}_ts.nii.gz -tpattern ${tpattern} -tzero 0 ${ts_input}
+    Do_cmd 3dTshift -prefix ${func}_ts.nii.gz -tpattern ${tpattern} -tzero 0 ${ts_input}
   else
     Note "Slice timing for this func dataset (done, skip)"
   fi
@@ -193,7 +188,7 @@ if [[ ! -f ${func}_ro.nii.gz ]]; then
   #echo "Deobliquing this func dataset"
   #3drefit -deoblique ${ro_input}
   Note "Reorienting for this func dataset"
-  3dresample -orient RPI -inset ${ro_input} -prefix ${func}_ro.nii.gz
+  Do_cmd 3dresample -orient RPI -inset ${ro_input} -prefix ${func}_ro.nii.gz
 else
   Note "Reorienting for this func dataset (done, skip)"
 fi
@@ -201,32 +196,32 @@ fi
 ##4. Motion correct to average of timeseries 
 if [[ ! -f ${func}_mc.nii.gz ]] || [[ ! -f ${func}_mc.1D ]]; then
   Note "Motion correcting for this func dataset"
-  rm -f ${func}_ro_mean.nii.gz
-  3dTstat -mean -prefix ${func}_ro_mean.nii.gz ${func}_ro.nii.gz 
-  3dvolreg -Fourier -twopass -base ${func}_ro_mean.nii.gz -zpad 4 -prefix ${func}_mc.nii.gz -1Dfile ${func}_mc.1D -1Dmatrix_save ${func}_mc.affine.1D ${func}_ro.nii.gz
+  Do_cmd rm -f ${func}_ro_mean.nii.gz
+  Do_cmd 3dTstat -mean -prefix ${func}_ro_mean.nii.gz ${func}_ro.nii.gz 
+  Do_cmd 3dvolreg -Fourier -twopass -base ${func}_ro_mean.nii.gz -zpad 4 -prefix ${func}_mc.nii.gz -1Dfile ${func}_mc.1D -1Dmatrix_save ${func}_mc.affine.1D ${func}_ro.nii.gz
 else
   Note "Motion correcting for this func dataset (done, skip)"
 fi
 
 ##5 Extract one volume as an example_func (Lucky 8)
 if [[ ! -f example_func.nii.gz ]]; then
-  echo "Extract one volume (No.8) as an example_func"
+  Note "Extract one volume (No.8) as an example_func"
   let "n_example=${example_volume}-1"
-  fslroi ${func}_mc.nii.gz example_func.nii.gz ${n_example} 1
+  Do_cmd fslroi ${func}_mc.nii.gz example_func.nii.gz ${n_example} 1
 else
-  echo "Extract one volume (No.8) as an example_func (done, skip)"
+  Note "Extract one volume (No.8) as an example_func (done, skip)"
 fi
 
 ##6 Bias Field Correction (output is used for alignment only)
 if [[ ! -f example_func_bc.nii.gz ]]; then
-  echo "N4 Bias Field Correction, used for alignment only"
-	fslmaths ${func}_mc.nii.gz -Tmean tmp_func_mc_mean.nii.gz
-	N4BiasFieldCorrection -i tmp_func_mc_mean.nii.gz -o tmp_func_bc.nii.gz
-	fslmaths tmp_func_mc_mean.nii.gz -sub tmp_func_bc.nii.gz ${func}_biasfield.nii.gz
-	fslmaths example_func.nii.gz -sub ${func}_biasfield.nii.gz example_func_bc.nii.gz
-	rm tmp_func_mc_mean.nii.gz tmp_func_bc.nii.gz
+  Note "N4 Bias Field Correction, used for alignment only"
+	Do_cmd fslmaths ${func}_mc.nii.gz -Tmean tmp_func_mc_mean.nii.gz
+	Do_cmd N4BiasFieldCorrection -i tmp_func_mc_mean.nii.gz -o tmp_func_bc.nii.gz
+	Do_cmd fslmaths tmp_func_mc_mean.nii.gz -sub tmp_func_bc.nii.gz ${func}_biasfield.nii.gz
+	Do_cmd fslmaths example_func.nii.gz -sub ${func}_biasfield.nii.gz example_func_bc.nii.gz
+	Do_cmd rm tmp_func_mc_mean.nii.gz tmp_func_bc.nii.gz
 else
-  echo "N4 Bias Field Correction, used for alignment only (done, skip)"
+  Note "N4 Bias Field Correction, used for alignment only (done, skip)"
 fi
 
 cd ${cwd}
