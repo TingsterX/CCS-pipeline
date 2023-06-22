@@ -165,10 +165,11 @@ if [ ${use_prior_only} = "false" ]; then
     Do_cmd flirt -in example_func_bc.nii.gz -ref ${anat_ref_head} -cost bbr -wmseg ${anat_ref_wm4bbr} -omat masks/xfm_example_func_To_${T1w_image}.mat -dof 6 -init masks/xfm_example_func_To_${T1w_image}.init.mat 
   fi
   Do_cmd convert_xfm -inverse -omat masks/xfm_${T1w_image}_To_example_func.mat masks/xfm_example_func_To_${T1w_image}.mat
+  Do_cmd rm -f masks/${T1w_image}_maskD.nii.gz
   Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix masks/${T1w_image}_maskD.nii.gz
   Do_cmd flirt -ref example_func.nii.gz -in masks/${T1w_image}_maskD.nii.gz -applyxfm -init masks/xfm_${T1w_image}_To_example_func.mat -interp nearestneighbour -out masks/${func}_mask.anatD.nii.gz
   # fill holes
-  rm -f masks/${func}_mask.nii.gz
+  Do_cmd rm -f masks/${func}_mask.nii.gz
   Do_cmd 3dmask_tool -input masks/${func}_mask.anatD.nii.gz -prefix masks/${func}_mask.nii.gz -fill_holes  
 else
   # Use the prior directly, remove the holes
