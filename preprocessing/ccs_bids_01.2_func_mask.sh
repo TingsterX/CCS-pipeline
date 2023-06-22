@@ -135,7 +135,7 @@ fi
 
 ## refine the mask from the native anatomical image
 if [ ${use_prior_only} = "false" ]; then
-  if [ ${func_min_dir}/masks/${func}_mask.initD.nii.gz ]; then
+  if [ -f ${func_min_dir}/masks/${func}_mask.initD.nii.gz ]; then
     ## anatomical brain as reference to refine the functional mask
     Do_cmd fslmaths example_func_bc.nii.gz -mas ${func}_mask.initD.nii.gz tmpbrain.nii.gz
     # brain to brain initial registration
