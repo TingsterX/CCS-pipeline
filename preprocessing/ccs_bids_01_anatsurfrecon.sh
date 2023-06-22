@@ -162,7 +162,7 @@ if [ ${rerun_FS} = "true" ] || [ ! -f segment_wm+sub+stem.nii.gz ]; then
   Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm_erode1.nii.gz --match 2 41 7 46 251 252 253 254 255 --erode 1
   Do_cmd mri_binarize --i aseg.nii.gz --o segment_csf_erode1.nii.gz --match 4 5 43 44 31 63 --erode 1
   # Create for flirt -bbr to match with FAST wm output to include Thalamus, Thalamus-Proper*, VentralDC, Stem
-  Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm+sub+stem.nii.gz --match 2 41 7 46 251 252 253 254 255 9 48 10 49 28 6016
+  Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm+sub+stem.nii.gz --match 2 41 7 46 251 252 253 254 255 9 48 10 49 28 60 16
 else
   Note "SKIP >> segmentation are created from FreeSurfer output"
 fi
