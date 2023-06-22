@@ -101,14 +101,14 @@ fi
 
 ## Extract the slicetiming information
 if [ ${do_slicetiming} = "true" ]; then
-  if [ $slicetiming_info = "json" ]; then
+  if [ ${slicetiming_info} = "json" ]; then
       ${CCSPIPELINE_DIR}/preprocessing/ccspy_bids_json2txt.py \
       -i ${func_dir}/${func}.json -o ${func_dir}/SliceTiming.txt -k SliceTiming -f %.8f
       tpattern="@${tpattern_file}"
-  elif [ -e $slicetiming_info ]; then
+  elif [ -e ${slicetiming_info} ]; then
     tpattern="@${tpattern_file}"
   else
-    tpattern=$slicetiming_info
+    tpattern=${slicetiming_info}
   fi
 fi
 
