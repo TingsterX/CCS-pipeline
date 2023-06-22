@@ -69,18 +69,15 @@ func_min_dir_name=`defaultopt ${func_min_dir_name} func_minimal`
 #exec > >(tee "Logs/${func_dir}/${0/.sh/.txt}") 2>&1
 #set -x 
 
-## Show parameters in log file
-Title "func preprocessing step 1: minimal preprocessing"
+Title "func preprocessing step 1: generate mask for minimal preprocessed dta"
 Note "func_name=           ${func}"
 Note "func_dir=            ${func_dir}"
-Note "example_volume=      ${example_volume}"
-Note "anat_ref_name=       ${anat_ref_name}"
 Note "anat_dir=            ${anat_dir}"
+Note "anat_ref_name=       ${anat_ref_name}"
 Note "use_automask_prior=  ${use_automask_prior}"
-Note "mask_prior=          ${mask_prior}"
 Note "use_prior_only=      ${use_prior_only}"
+Note "mask_prior=          ${mask_prior}"
 Note "out_dir_name=        ${func_min_dir_name}"
-Note "rm_exist=            ${rm_exist}"
 echo "------------------------------------------------"
 
 T1w_image=${anat_ref_name}_acpc_dc
