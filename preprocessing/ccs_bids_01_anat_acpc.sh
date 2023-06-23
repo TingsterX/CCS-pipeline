@@ -75,20 +75,6 @@ Note "T1w_name             ${T1w}"
 Note "mask_select=         ${mask_select}"
 echo "------------------------------------------------"
 
-# vcheck function 
-vcheck_acpc() {
-	underlay=$1
-	figout=$2
-    title="ACPC alignment"
-	echo "----->> vcheck acpc"
-    rm -rf tmp_acpc_mask_${underlay}.nii.gz
-    Do_cmd 3dcalc -a ${underlay} -expr "step(x)+step(y)+step(z)" -prefix tmp_acpc_mask_${underlay}.nii.gz
-	Do_cmd overlay 1 1 ${underlay} -a tmp_acpc_mask_${underlay}.nii.gz 1 4 tmp_rendered_mask.nii.gz
-	Do_cmd slicer tmp_rendered_mask.nii.gz -a ${figout} -L
-	Do_cmd convert -font helvetica -fill white -pointsize 36 -draw "text 30,50 '$title'" ${figout} ${figout}
-	Do_cmd rm -f tmp_rendered_mask.nii.gz tmp_acpc_mask_${underlay}.nii.gz
-}
-
 ## set the selected brain mask 
 T1w_brain_mask=${anat_dir}/mask/brain_mask_${mask_select}.nii.gz
 if [ ! -f ${T1w_brain_mask} ]; then

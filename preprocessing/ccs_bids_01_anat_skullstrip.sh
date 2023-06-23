@@ -268,13 +268,13 @@ if [[ ! -z ${prior_mask} ]] && [[ ! -z ${prior_anat} ]]; then
 	Do_cmd fslmaths ${anat_dir}/${T1w}_bc.nii.gz -mas ${anat_dir}/mask/brain_mask_prior.nii.gz ${anat_dir}/${T1w}_bc_brain_prior.nii.gz
 	
 	## vcheck prior mask
-    vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz brain_mask_prior.nii.gz vcheck_skull_strip_prior.png prior
+    vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz brain_mask_prior.nii.gz vcheck_skull_strip_prior.png 
 	if [ ${do_skullstrip} = true ]; then
     	Do_cmd fslmaths brain_mask_fs.nii.gz -sub brain_mask_prior.nii.gz  diff_mask_prior-fs.nii.gz
 		Do_cmd fslmaths diff_mask_prior.nii.gz -thr 0 -abs -bin tmp_diff_mask_prior+.nii.gz
 		Do_cmd fslmaths diff_mask_prior.nii.gz -uthr 0 -abs -bin tmp_diff_mask_prior-.nii.gz
-		Do_cmd vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz tmp_diff_mask_prior+.nii.gz vcheck_diff_skull_strip_prior+.png diff.prior+
-		Do_cmd vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz tmp_diff_mask_prior-.nii.gz vcheck_diff_skull_strip_prior-.png diff.prior-
+		Do_cmd vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz tmp_diff_mask_prior+.nii.gz vcheck_diff_skull_strip_prior+.png 
+		Do_cmd vcheck_mask ${anat_dir}/${T1w}_bc.nii.gz tmp_diff_mask_prior-.nii.gz vcheck_diff_skull_strip_prior-.png 
 		Do_cmd rm tmp_diff_mask_prior+.nii.gz tmp_diff_mask_prior-.nii.gz
 	fi	
 fi

@@ -111,18 +111,6 @@ fi
 #exec > >(tee "Logs/${subject}/${0/.sh/.txt}") 2>&1
 #set -x 
 
-# vcheck function 
-vcheck_mask() {
-	underlay=$1
-	overlay=$2
-	figout=$3
-	echo "----->> vcheck mask"
-	Do_cmd overlay 1 1 ${underlay} -a ${overlay} 1 1 tmp_rendered_mask.nii.gz
-	Do_cmd slicer tmp_rendered_mask.nii.gz -S 10 1200 ${figout}
-	Do_cmd rm -f tmp_rendered_mask.nii.gz
-}
-
-
 cwd=$( pwd )
 
 mkdir ${func_min_dir}/masks
