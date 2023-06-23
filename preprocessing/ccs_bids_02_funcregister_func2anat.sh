@@ -162,8 +162,10 @@ epi_brain_init=${func_pp_dir}/masks/example_func_bc_brain.init.nii.gz
 
 ## copy the input example_func and 
 if [ ${dc_method} = "none" ]; then
+  rm -f ${epi}
   3dcopy ${func_min_dir}/example_func_bc.nii.gz ${epi}
 else
+  rm -f ${epi}
   3dcopy ${dc_dir}/example_func_unwarped.nii.gz ${epi}
 fi
 
