@@ -61,6 +61,7 @@ subject=`getopt1 "--subject" $@`
 
 ## default parameter
 func=`defaultopt ${func_name} func`
+anat_ref_name=`defaultopt ${anat_ref_name} T1w`
 dc_method=`defaultopt ${dc_method} none`
 reg_method=`defaultopt ${reg_method} flirtbbr`
 func_min_dir_name=`defaultopt ${func_min_dir_name} func_minimal`
