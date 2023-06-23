@@ -163,20 +163,20 @@ epi_brain_init=${func_pp_dir}/masks/example_func_bc_brain.init.nii.gz
 ## copy the input example_func and 
 if [ ${dc_method} = "none" ]; then
   rm -f ${epi}
-  3dcopy ${func_min_dir}/example_func_bc.nii.gz ${epi}
+  Do_cmd 3dcopy ${func_min_dir}/example_func_bc.nii.gz ${epi}
 else
   rm -f ${epi}
-  3dcopy ${dc_dir}/example_func_unwarped.nii.gz ${epi}
+  Do_cmd 3dcopy ${dc_dir}/example_func_unwarped.nii.gz ${epi}
 fi
 
 ##---------------------------------------------
 # generate the initial brain mask for unwarped image
 if [ ${dc_method} = "none" ]; then
-  3dcopy ${func_min_dir}/example_func_bc_brain.nii.gz ${epi_brain_init}
+  rm -f ${epi_brain_init}
+  Do_cmd 3dcopy ${func_min_dir}/example_func_bc_brain.nii.gz ${epi_brain_init}
   Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix ${func_pp_dir}/masks/${T1w_image}_maskD.nii.gz
 else
   pushd ${func_pp_dir}
-  mkdir masks
   # head to head initial registration
   Do_cmd flirt -in ${anat_ref_head} -ref ${epi} -out masks/${T1w_image}_To_example_func.init.nii.gz -omat masks/xfm_${T1w_image}_To_example_func.init2.mat -cost corratio -dof 6 -interp spline
   ## do flirt -bbr
@@ -201,20 +201,20 @@ if [[ ${reg_method} == "fsbbr" ]]; then
   pushd ${func_reg_dir}
   ## convert the example_func to RSP orient
   rm -f flirtbbr/tmp_example_func_brain_rsp.nii.gz
-  3dresample -orient RSP -prefix flirtbbr/tmp_example_func_brain_rsp.nii.gz -inset ${epi_brain_init}
-  fslreorient2std flirtbbr/tmp_example_func_brain_rsp.nii.gz > flirtbbr/func_rsp2rpi.mat
-  convert_xfm -omat flirtbbr/func_rpi2rsp.mat -inverse flirtbbr/func_rsp2rpi.mat
+  Do_cmd 3dresample -orient RSP -prefix flirtbbr/tmp_example_func_brain_rsp.nii.gz -inset ${epi_brain_init}
+  Do_cmd fslreorient2std flirtbbr/tmp_example_func_brain_rsp.nii.gz > flirtbbr/func_rsp2rpi.mat
+  Do_cmd convert_xfm -omat flirtbbr/func_rpi2rsp.mat -inverse flirtbbr/func_rsp2rpi.mat
   echo "-----------------------------------------------------"
   echo "func->anat registration method: Freesurfer bbregister"
   echo "-----------------------------------------------------"
   if [[ -f ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz ]]; then
     ## do fs bbregist
     mov_rsp=flirtbbr/tmp_example_func_brain_rsp.nii.gz
-    bbregister --s ${subject} --mov ${mov_rsp} --reg fsbbr/bbregister_rsp2rsp.dof6.init.dat --init-fsl --bold --fslmat xfm_func_rsp2fsbrain.init.mat
+    Do_cmd bbregister --s ${subject} --mov ${mov_rsp} --reg fsbbr/bbregister_rsp2rsp.dof6.init.dat --init-fsl --bold --fslmat xfm_func_rsp2fsbrain.init.mat
     bb_init_mincost=`cut -c 1-8 fsbbr/bbregister_rsp2rsp.dof6.init.dat.mincost`
     comp=`expr ${bb_init_mincost} \> 0.55`
     if [ "$comp" -eq "1" ]; then
-      bbregister --s ${subject} --mov ${mov_rsp} --reg fsbbr/bbregister_rsp2rsp.dof6.dat --init-reg fsbbr/bbregister_rsp2rsp.dof6.init.dat --bold --fslmat fsbbr/xfm_func_rsp2fsbrain.mat
+      Do_cmd bbregister --s ${subject} --mov ${mov_rsp} --reg fsbbr/bbregister_rsp2rsp.dof6.dat --init-reg fsbbr/bbregister_rsp2rsp.dof6.init.dat --bold --fslmat fsbbr/xfm_func_rsp2fsbrain.mat
       bb_mincost=`cut -c 1-8 bbregister_rsp2rsp.dof6.dat.mincost`
       comp=`expr ${bb_mincost} \> 0.55`
       if [ "$comp" -eq "1" ]; then
@@ -225,15 +225,15 @@ if [[ ${reg_method} == "fsbbr" ]]; then
       mv fsbbr/xfm_func_rsp2fsbrain.init.mat fsbbr/xfm_func_rsp2fsbrain.mat
     fi
     ## concat reg matrix: func_rpi to highres(rsp)
-    convert_xfm -omat fsbbr/xfm_func2fsbrain.mat -concat fsbbr/xfm_func_rsp2fsbrain.mat fsbbr/func_rpi2rsp.mat
+    Do_cmd convert_xfm -omat fsbbr/xfm_func2fsbrain.mat -concat fsbbr/xfm_func_rsp2fsbrain.mat fsbbr/func_rpi2rsp.mat
     ## write func_rpi to highres(rsp) to fs registration format 
-    tkregister2 --mov ${epi} --targ ${SUBJECTS_DIR}/${subject}/mri/T1.mgz --fsl fsbbr/xfm_func2fsbrain.mat --noedit --s ${subject} --reg fsbbr/bbregister.dof6.dat
+    Do_cmd tkregister2 --mov ${epi} --targ ${SUBJECTS_DIR}/${subject}/mri/T1.mgz --fsl fsbbr/xfm_func2fsbrain.mat --noedit --s ${subject} --reg fsbbr/bbregister.dof6.dat
     # concat func->fs_T1 fs_T1->fs_rawavg (acpc)
-    convert_xfm -omat fsbbr/xfm_func2rawavg.mat -concat ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.FSL.mat fsbbr/xfm_func2fsbrain.mat
+    Do_cmd convert_xfm -omat fsbbr/xfm_func2rawavg.mat -concat ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.FSL.mat fsbbr/xfm_func2fsbrain.mat
   fi
   
   # copy to xfms folder
-  cp ${func_reg_dir}/fsbbr/xfm_func2rawavg.mat ${func_reg_dir}/xfm_func2${T1w_image}.mat
+  Do_cmd cp ${func_reg_dir}/fsbbr/xfm_func2rawavg.mat ${func_reg_dir}/xfm_func2${T1w_image}.mat
   popd
 fi
   
@@ -246,12 +246,12 @@ if [[ ${reg_method} == "flirtbbr" ]]; then
   echo "func->anat registration method: FSL flirt -bbr"
   echo "-----------------------------------------------------"
   ## do flirt to init
-  flirt -in ${epi} -ref ${anat_ref_head} -cost corratio -omat flirtbbr/xfm_func2anat.flirt_init.mat -dof 6
-  convert_xfm -omat flirtbbr/xfm_anat2func.flirt_init.mat -inverse flirtbbr/xfm_func2anat.flirt_init.mat
-  flirt -interp nearestneighbour -in ${anat_ref_mask} -ref ${epi} -applyxfm -init flirtbbr/xfm_anat2func.flirt_init.mat -out flirtbbr/tmp_example_func_mask.nii.gz
-  fslmaths ${epi} -mas flirtbbr/tmp_example_func_mask.nii.gz flirtbbr/tmp_example_func_brain.nii.gz
+  Do_cmd flirt -in ${epi} -ref ${anat_ref_head} -cost corratio -omat flirtbbr/xfm_func2anat.flirt_init.mat -dof 6
+  Do_cmd convert_xfm -omat flirtbbr/xfm_anat2func.flirt_init.mat -inverse flirtbbr/xfm_func2anat.flirt_init.mat
+  Do_cmd flirt -interp nearestneighbour -in ${anat_ref_mask} -ref ${epi} -applyxfm -init flirtbbr/xfm_anat2func.flirt_init.mat -out flirtbbr/tmp_example_func_mask.nii.gz
+  Do_cmd fslmaths ${epi} -mas flirtbbr/tmp_example_func_mask.nii.gz flirtbbr/tmp_example_func_brain.nii.gz
   ## do flirt -bbr
-  flirt -in flirtbbr/tmp_example_func_brain.nii.gz -ref ${anat_ref_brain} -cost bbr -wmseg ${anat_ref_wm4bbr} -omat flirtbbr/xfm_func2anat.mat -dof 6 -init flirtbbr/xfm_func2anat.flirt_init.mat
+  Do_cmd flirt -in flirtbbr/tmp_example_func_brain.nii.gz -ref ${anat_ref_brain} -cost bbr -wmseg ${anat_ref_wm4bbr} -omat flirtbbr/xfm_func2anat.mat -dof 6 -init flirtbbr/xfm_func2anat.flirt_init.mat
   
   ## write func_rpi to highres(rpi) to fs registration format
   ##convert_xfm -omat ${func_reg_dir}/xfm_func2fsbrain.mat -concat ${SUBJECTS_DIR}/${subject}/mri/xfm_rawavg_To_fs.FSL.mat flirtbbr/xfm_func2anat.mat
@@ -259,7 +259,7 @@ if [[ ${reg_method} == "flirtbbr" ]]; then
   
   # copy to xfms folder
   rm ${func_reg_dir}/flirtbbr/tmp*
-  cp ${func_reg_dir}/flirtbbr/xfm_func2anat.mat ${func_reg_dir}/xfm_func2${T1w_image}.mat
+  Do_cmd cp ${func_reg_dir}/flirtbbr/xfm_func2anat.mat ${func_reg_dir}/xfm_func2${T1w_image}.mat
   popd
 fi
   
@@ -271,16 +271,16 @@ if [ ${reg_method} == "flirt" ]; then
   echo "-----------------------------------------------------"
   echo "func->anat registration method: FSL flirt"
   echo "-----------------------------------------------------"
-  flirt -in ${epi} -ref ${anat_ref_head} -cost corratio -omat flirt/xfm_func2anat.flirt_init.mat -dof 6
-  convert_xfm -omat flirt/xfm_anat2func.flirt_init.mat -inverse flirt/xfm_func2anat.flirt_init.mat
-  flirt -interp nearestneighbour -in ${anat_ref_mask} -ref ${epi} -applyxfm -init flirt/xfm_anat2func.flirt_init.mat -out flirtbbr/tmp_example_func_mask.nii.gz
-  fslmaths ${epi} -mas flirt/tmp_example_func_mask.nii.gz flirt/tmp_example_func_brain.nii.gz
+  Do_cmd flirt -in ${epi} -ref ${anat_ref_head} -cost corratio -omat flirt/xfm_func2anat.flirt_init.mat -dof 6
+  Do_cmd convert_xfm -omat flirt/xfm_anat2func.flirt_init.mat -inverse flirt/xfm_func2anat.flirt_init.mat
+  Do_cmd flirt -interp nearestneighbour -in ${anat_ref_mask} -ref ${epi} -applyxfm -init flirt/xfm_anat2func.flirt_init.mat -out flirtbbr/tmp_example_func_mask.nii.gz
+  Do_cmd fslmaths ${epi} -mas flirt/tmp_example_func_mask.nii.gz flirt/tmp_example_func_brain.nii.gz
   ## do flirt 
-  flirt -in flirt/tmp_example_func_brain.nii.gz -ref ${anat_ref_brain} -omat flirtbbr/xfm_func2anat.mat -dof 6 -init flirt/xfm_func2anat.flirt_init.mat
+  Do_cmd flirt -in flirt/tmp_example_func_brain.nii.gz -ref ${anat_ref_brain} -omat flirtbbr/xfm_func2anat.mat -dof 6 -init flirt/xfm_func2anat.flirt_init.mat
   
   # copy to xfms folder
   rm ${func_reg_dir}/flirt/tmp*
-  cp ${func_reg_dir}/flirt/xfm_func2anat.mat ${func_reg_dir}/xfm_func2${T1w_image}.mat
+  Do_cmd cp ${func_reg_dir}/flirt/xfm_func2anat.mat ${func_reg_dir}/xfm_func2${T1w_image}.mat
   popd
 fi
 
