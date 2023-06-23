@@ -174,6 +174,7 @@ fi
 if [ ${dc_method} = "none" ]; then
   rm -f ${epi_brain_init}
   Do_cmd 3dcopy ${func_min_dir}/example_func_bc_brain.nii.gz ${epi_brain_init}
+  rm -f ${func_pp_dir}/masks/${T1w_image}_maskD.nii.gz
   Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix ${func_pp_dir}/masks/${T1w_image}_maskD.nii.gz
 else
   pushd ${func_pp_dir}
