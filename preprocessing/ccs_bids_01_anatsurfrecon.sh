@@ -157,6 +157,7 @@ if [ ${rerun_FS} = "true" ] || [ ! -f segment_wm+sub+stem.nii.gz ]; then
   Do_cmd cp ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz segment_brain.nii.gz
   #mri_convert -it mgz ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz -ot nii aseg.nii.gz
   Do_cmd mri_vol2vol --interp nearest --mov ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz --targ ${SUBJECTS_DIR}/${subject}mri/   rawavg.mgz --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --o aseg.nii.gz 
+  Do_cmd mri_binarize --i aseg.nii.gz --o segment_gm.nii.gz --gm
   Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm.nii.gz --match 2 41 7 46 251 252 253 254 255 
   Do_cmd mri_binarize --i aseg.nii.gz --o segment_csf.nii.gz --match 4 5 43 44 31 63 
   Do_cmd mri_binarize --i aseg.nii.gz --o segment_wm_erode1.nii.gz --match 2 41 7 46 251 252 253 254 255 --erode 1
