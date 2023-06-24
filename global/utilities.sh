@@ -77,7 +77,20 @@ function vcheck_mask() {
   mkdir -p ${wk_dir}
 	overlay 1 1 ${underlay} -a ${overlay} 1 1 ${wk_dir}/tmp_rendered_mask.nii.gz
 	slicer ${wk_dir}/tmp_rendered_mask.nii.gz -S 10 1200 ${figout}
-	rm -f ${wk_dir}
+	rm -r ${wk_dir}
+}
+
+# vcheck image for registration
+function vcheck_mask_func() {
+	underlay=$1
+	overlay=$2
+	figout=$3
+	echo "-->> vcheck mask "
+  wk_dir=$(dirname ${figout})/_tmp_$(basename ${figout})
+  mkdir -p ${wk_dir}
+	overlay 1 1 ${underlay} -a ${overlay} 1 1 ${wk_dir}/tmp_rendered_mask.nii.gz
+	slicer ${wk_dir}/tmp_rendered_mask.nii.gz -S 4 1200 ${figout}
+	rm -r ${wk_dir}
 }
 
 function vcheck_acpc() {
@@ -90,10 +103,39 @@ function vcheck_acpc() {
   3dcalc -a ${underlay} -expr "step(x)+step(y)+step(z)" -prefix ${wk_dir}/tmp_acpc_mask_${underlay}.nii.gz
 	overlay 1 1 ${underlay} -a ${wk_dir}/tmp_acpc_mask_${underlay}.nii.gz 1 4 ${wk_dir}/tmp_rendered_mask.nii.gz
 	slicer ${wk_dir}/tmp_rendered_mask.nii.gz -a ${figout} -L
-	rm -f ${wk_dir}
+	rm -r ${wk_dir}
 }
 
 function vcheck_reg() {
+  underlay=$1
+  edge_image=$2
+  figout=$3
+  mask=$4
+  echo "-->> vcheck registration "
+  wk_dir=$(dirname ${figout})/_tmp_$(basename ${figout})
+  mkdir -p ${wk_dir}
+  pushd $(dirname ${figout})/_tmp_$(basename ${figout})
+  if [ ! -z ${mask} ]; then
+    mask_option="-mask ${mask}"
+  else
+    mask_option=""
+  fi
+  rm -f tmp_edge.nii.gz
+  3dedgedog -input ${edge_image} -prefix tmp_edge.nii.gz ${mask_option}
+  overlay 1 1 ${underlay} -a tmp_edge.nii.gz 1 1 tmp_rendered.nii.gz
+  slicer tmp_rendered -s 2 \
+    -x 0.30 sla.png -x 0.45 slb.png -x 0.50 slc.png -x 0.55 sld.png -x 0.70 sle.png \
+    -y 0.30 slg.png -y 0.40 slh.png -y 0.50 sli.png -y 0.60 slj.png -y 0.70 slk.png \
+    -z 0.30 slm.png -z 0.40 sln.png -z 0.50 slo.png -z 0.60 slp.png -z 0.70 slq.png  
+  pngappend sla.png + slb.png + slc.png + sld.png  + sle.png render_vcheck1.png 
+  pngappend slg.png + slh.png + sli.png + slj.png  + slk.png render_vcheck2.png
+  pngappend slm.png + sln.png + slo.png + slp.png  + slq.png render_vcheck3.png
+  pngappend render_vcheck1.png - render_vcheck2.png - render_vcheck3.png ${figout}
+  popd
+  rm -r ${wk_dir}
+}
+
+function vcheck_reg3() {
   underlay=$1
   edge_image=$2
   figout=$3
@@ -102,7 +144,7 @@ function vcheck_reg() {
   mkdir -p ${wk_dir}
   pushd $(dirname ${figout})/_tmp_$(basename ${figout})
   rm -f tmp_edge.nii.gz
-  3dedgedog -input ${edge_image} -prefix tmp_edge.nii.gz
+  3dedge3 -input ${edge_image} -prefix tmp_edge.nii.gz
   overlay 1 1 ${underlay} -a tmp_edge.nii.gz 1 1 tmp_rendered.nii.gz
   slicer tmp_rendered -s 2 \
     -x 0.30 sla.png -x 0.45 slb.png -x 0.50 slc.png -x 0.55 sld.png -x 0.70 sle.png \
