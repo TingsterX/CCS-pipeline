@@ -1,169 +1,139 @@
 #!/usr/bin/env bash
 
 ##########################################################################################################################
-## CCS SCRIPT TO DO FUNCTIONAL IMAGE Registration (FUNC to STD)
-## Xi-Nian Zuo, Aug. 13, 2011; Revised at IPCAS, Feb. 12, 2013.
-## Ting Xu 202204, BIDS format input
+## Revised from https://github.com/zuoxinian/CCS
+## Ting Xu, functional preprocessing
 ##########################################################################################################################
 
+Usage() {
+	cat <<EOF
 
-while test $# -gt 0; do
-  case "$1" in
-    -d)
-      shift
-      if test $# -gt 0; then
-        export base_directory=$1
-      else
-        echo "Need to specify input working directory (path/to/subject_folder)"
-      fi
-      shift
-      ;;
-    --subject*)
-      shift
-			if test $# -gt 0; then
-				export subject=`echo $1 | sed -e 's/^[^=]*=//g'`
-			else
-				echo "Need to specify subject number (sub-******)"
-			fi
-			shift
-			;;
-    --session*)
-			shift
-			if test $# -gt 0; then
-				export session=`echo $1 | sed -e 's/^[^=]*=//g'`
-			else
-				echo "Need to specify session number"
-			fi
-			shift
-			;;
-    --run*)
-      shift
-			if test $# -gt 0; then
-				export run=`echo $1 | sed -e 's/^[^=]*=//g'`
-			else
-				echo "Need to specify run number"
-			fi
-			shift
-			;;
-    --res*)
-      shift
-			if test $# -gt 0; then
-				export res=`echo $1 | sed -e 's/^[^=]*=//g'`
-			else
-				echo "Need to specify res"
-			fi
-			shift
-			;;
-    --func-name)
-      shift
-      if test $# -gt 0; then
-        export rest=`echo $1 | sed -e 's/^[^=]*=//g'`
-      else
-        echo "Need to specify name of resting state scan"
-      fi
-      shift
-      ;;
-    --dc-method)
-      shift
-      export dc_method=$1
-      shift
-      ;;
-    *)
-      echo "Invalid input"
-      exit 0
-  esac
-done
+${0}: Function Pipeline: brain extraction
 
-exec > >(tee "Logs/${subject}/02_funcregister_func2std_log.txt") 2>&1
-set -x 
+Usage: ${0}
+  --func_dir=<functional directory>, e.g. base_dir/subID/func/sub-X_task-X/
+  --func_name=[func], name of the functional data, default=func (e.g. <func_dir>/func.nii.gz)
+  --anat_dir=<anatomical directory>, specify the anat directory 
+  --anat_ref_name=[T1w, T2w], name of the anatomical reference name, default=T1w
+  --dc_method=[none, topup, fugue, omni], default=none
+  --func_min_dir_name=[func_minimal], default=func_minimal
+  --ref_brain=<reference brain>, path fo the reference brain that match with the write_out_res resolution
+EOF
+}
 
-if [ -z ${dc_method} ]; then
-  dc_method=nondc
+# Return a Usage statement
+if [ "$#" = "0" ]; then
+    Usage
+    exit 1
 fi
 
-## directory setup
-ccs_dir=`pwd`
-anat_dir=${base_directory}/${subject}/${session}/anat
-func_dir=${base_directory}/${subject}/${session}/func_${dc_method}
-anat_reg_dir=${anat_dir}/reg
-func_min_dir=${base_directory}/${subject}/${session}/func_minimal
-func_reg_dir=${func_dir}/func_reg
-highres=${anat_reg_dir}/highres.nii.gz
+# function for parsing options
+getopt1() {
+  sopt="$1"
+  shift 1
+  for fn in $@ ; do
+    if [ `echo $fn | grep -- "^${sopt}=" | wc -w` -gt 0 ] ; then
+     echo $fn | sed "s/^${sopt}=//"
+     return 0
+    fi
+  done
+}
 
-if [ -f ${func_min_dir}/example_func_unwarped_brain.nii.gz ]; then
-  example_func=${func_dir}/example_func_unwarped_brain.nii.gz
+defaultopt() {
+    echo $1
+}
+
+source ${CCSPIPELINE_DIR}/global/utilities.sh
+## arguments pasting
+func_dir=`getopt1 "--func_dir" $@`
+func_name=`getopt1 "--func_name" $@`
+anat_dir=`getopt1 "--anat_dir" $@`
+anat_ref_name=`getopt1 "--anat_ref_name" $@`
+ref_brain=`getopt1 "--ref_brain" $@`
+dc_method=`getopt1 "--dc_method" $@`
+func_min_dir_name=`getopt1 "--func_min_dir_name" $@`
+
+## default parameter
+func=`defaultopt ${func_name} func`
+anat_ref_name=`defaultopt ${anat_ref_name} T1w`
+dc_method=`defaultopt ${dc_method} none`
+func_min_dir_name=`defaultopt ${func_min_dir_name} func_minimal`
+ref_brain=`defaultopt ${ref_brain} ${FSLDIR}/data/standard/MNI152_T1_2mm_brain.nii.gz`
+
+## Setting up logging
+#exec > >(tee "Logs/${func_dir}/${0/.sh/.txt}") 2>&1
+#set -x 
+
+Title "func preprocessing step 1: generate mask for minimal preprocessed dta"
+Note "func_name=           ${func}"
+Note "func_dir=            ${func_dir}"
+Note "anat_dir=            ${anat_dir}"
+Note "anat_ref_name=       ${anat_ref_name}"
+Note "ref_brain=           ${ref_brain}"
+Note "dc_method=           ${dc_method}"
+Note "func_min_dir_name=   ${func_min_dir_name}"
+echo "------------------------------------------------"
+
+# set func_reg_dir
+if [ ${dc_method} = "none" ]; then
+  func_pp_dir_name=func_non_dc
+elif [ ${dc_method} = "topup" ]; then
+  func_pp_dir_name=func_dc_topup
+elif [ ${dc_method} = "fugue" ]; then
+  func_pp_dir_name=func_dc_fugue
+elif [ ${dc_method} = "omni" ]; then
+  func_pp_dir_name=func_dc_omni
 else
-  example_func=${func_dir}/example_func_brain.nii.gz
+  Error "--dc_method distortion correction method has to be none, topup, fugue, omni"
+  exit 1
 fi
 
-if [ -z ${res} ]; then
-  res=3
-fi 
+T1w_image=${anat_ref_name}_acpc_dc
+anat_ref_head=${anat_dir}/${T1w_image}.nii.gz
 
-if [ -z ${if_rerun} ]; then
-  if_rerun=true
-fi
+atlas_space_dir=${anat_dir}/TemplateSpace
+func_min_dir=${func_dir}/${func_min_dir_name}
+epi_bc_raw=${func_min_dir}/example_func_bc.nii.gz
+func_pp_dir=${func_dir}/${func_pp_dir_name}
+func_reg_dir=${func_dir}/${func_pp_dir_name}/xfms
 
-
-## template
-standard_head=${ccs_dir}/templates/MacaqueYerkes19_T1w_0.5mm.nii.gz
-standard_brain=${ccs_dir}/templates/MacaqueYerkes19_T1w_0.5mm_brain.nii.gz
-standard_edge=${ccs_dir}/templates/MacaqueYerkes19_T1w_0.5mm_brain_edge.nii.gz # same resolution as standard_brain/head
-standard_func=${ccs_dir}/templates/MacaqueYerkes19_T1w_${res}mm.nii.gz
-
-
-echo "---------------------------------------"
-echo "!!!! FUNC TO STANDARD REGISTRATION !!!!"
-echo "---------------------------------------"
-
+xfm_raw2unwarp=${func_reg_dir}/raw2unwarped.nii.gz
+xfm_unwarp2raw=${func_reg_dir}/unwarped2raw.nii.gz
+xfm_func2anat=${func_reg_dir}/xfm_example_func_To_${T1w_image}.mat
+xfm_anat2func=${func_reg_dir}/xfm_${T1w_image}_To_example_func.mat
+xfm_anat2std=${atlas_space_dir}/xfms/acpc_dc2standard.nii.gz
+xfm_std2anat=${atlas_space_dir}/xfms/standard2acpc_dc.nii.gz
+Transform=${func_pp_dir}/xfms/example_func2
 ##------------------------------------------------
+
 cwd=$( pwd )
-##1. FUNC->STANDARD
+##------------------------------------------------
+## combine warp
 cd ${func_reg_dir}
-if [[ ! -f fnirt_example_func2standard.nii.gz ]] || [[ ${if_rerun} == "true" ]]; then
-  echo ">> Concatenate func-anat-std registration"
-  ## Create mat file for registration of functional to standard
-  convert_xfm -omat example_func2standard.mat -concat ${anat_reg_dir}/highres2standard.mat example_func2highres.mat
-  ## apply registration
-  flirt -ref ${standard_brain} -in ${example_func} -out example_func2standard.nii.gz -applyxfm -init example_func2standard.mat -interp trilinear
-  ## Create inverse mat file for registration of standard to functional
-  convert_xfm -inverse -omat standard2example_func.mat example_func2standard.mat
-  ## 5. Applying fnirt
-  applywarp --interp=spline --ref=${standard_brain} --in=${example_func} --out=fnirt_example_func2standard.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=example_func2highres.mat 
-
-  ## 5. Visual check
-  ## vcheck of the fnirt registration
-  echo "----- visual check of the functional registration ----"
-  bg_min=`fslstats fnirt_example_func2standard.nii.gz -P 1`
-  bg_max=`fslstats fnirt_example_func2standard.nii.gz -P 99`
-  overlay 1 1 fnirt_example_func2standard.nii.gz ${bg_min} ${bg_max} ${standard_edge} 1 1 vcheck/render_vcheck
-  slicer vcheck/render_vcheck -s 2 \
-      -x 0.30 sla.png -x 0.45 slb.png -x 0.50 slc.png -x 0.55 sld.png -x 0.70 sle.png \
-      -y 0.30 slg.png -y 0.40 slh.png -y 0.50 sli.png -y 0.60 slj.png -y 0.70 slk.png \
-      -z 0.30 slm.png -z 0.40 sln.png -z 0.50 slo.png -z 0.60 slp.png -z 0.70 slq.png 
-  pngappend sla.png + slb.png + slc.png + sld.png  +  sle.png render_vcheck1.png 
-  pngappend slg.png + slh.png + sli.png + slj.png  + slk.png render_vcheck2.png
-  pngappend slm.png + sln.png + slo.png + slp.png  + slq.png render_vcheck3.png
-  pngappend render_vcheck1.png - render_vcheck2.png - render_vcheck3.png fnirt_example_func2standard_edge.png
-  mv fnirt_example_func2standard_edge.png vcheck/
-  title=fnirt_example2standard
-  convert -font helvetica -fill white -pointsize 36 -draw "text 15,25 '$title'" vcheck/fnirt_example_func2standard.png vcheck/fnirt_example_func2standard.png
-  rm -f sl?.png render_vcheck?.png vcheck/render_vcheck*
-
+if [ ${dc_method} = "none" ]; then
+  Info "Combine warp for non-distortion corrected data ..."
+  Do_cmd convertwarp --relout --rel --ref=${ref_brain} --premat=${xfm_func2anat} --warp1=${xfm_anat2std} --out=${func_reg_dir}/func_mc2standard.nii.gz
+  Do_cmd convertwarp --relout --rel --ref=${epi_bc_raw} --warp1=${xfm_std2anat} --postmat=${xfm_anat2func} --out=${func_reg_dir}/standard2func_mc.nii.gz
 else
-  echo ">> Concatenate func-anat-std registration (done, skip)"
+  Info "Combine warp for distortion corrected data ..."
+  # func raw <-> anat acpc_dc
+  Do_cmd convertwarp --relout --rel --ref=${anat_ref_head} --warp1=${xfm_raw2unwarp} --postmat=${xfm_func2anat} --out=${func_reg_dir}/func_mc2${T1w_image}.nii.gz
+  Do_cmd convertwarp --relout --rel --ref=${epi_bc_raw} --premat=${xfm_anat2func} --warp1=${xfm_unwarp2raw} --out=${func_reg_dir}/${T1w_image}2func_mc.nii.gz
+  # func raw <-> standard
+  Do_cmd convertwarp --relout --rel --ref=${ref_brain} --warp1=${func_reg_dir}/func2${T1w_image}.nii.gz --warp2=${xfm_anat2std} --out=${func_reg_dir}/func_mc2standard.nii.gz
+  Do_cmd convertwarp --relout --rel --ref=${func_min_dir}/example_func.nii.gz --warp1=${xfm_std2anat} --warp1=${func_reg_dir}/${T1w_image}2func_mc.nii.gz --out=${func_reg_dir}/standard2func_mc.nii.gz
 fi
-
-## Apply to the data
-if [[ ! -f ${rest}_gms.yerkes.${res}mm.nii.gz ]] || [[ "${if_rerun}" = "true" ]]; then 
-  echo ">> Apply func-anat-std registration to the func dataset"
-  applywarp --interp=nn --ref=${standard_func} --in=${rest}_pp_mask.nii.gz --out=${rest}_pp_mask.yerkes.${res}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=example_func2highres.mat
-
-  applywarp --interp=spline --ref=${standard_func} --in=${rest}_gms.nii.gz --out=${rest}_gms.yerkes.${res}mm.nii.gz --warp=${anat_reg_dir}/highres2standard_warp --premat=example_func2highres.mat
-  mri_mask ${rest}_gms.yerkes.${res}mm.nii.gz ${rest}_pp_mask.yerkes.${res}mm.nii.gz ${rest}_gms.yerkes.${res}mm.nii.gz
-else
-  echo ">> Apply func-anat-std registration to the func dataset (done, skip)"
-fi
+##------------------------------------------------
+Info "Apply warps to the motion corrected data (func_mc) ..."
+## apply warp
+Do_cmd applywarp --rel --interp=spline --in=${epi_bc_raw} --ref=${ref_brain} --warp=${func_reg_dir}/func_mc2standard.nii.gz --out=${func_reg_dir}/vcheck/func_mc_To_standard.nii.gz
+Do_cmd applywarp --rel --interp=spline --in=${ref_brain} --ref=${epi_bc_raw} --warp=${func_reg_dir}/standard2func_mc.nii.gz --out=${func_reg_dir}/vcheck/standard_To_func_mc.nii.gz
+##------------------------------------------------
+Info "Generate quality vcheck figures ..."
+Do_cmd vcheck_reg ${epi_bc_raw} ${func_reg_dir}/vcheck/standard_To_func_mc.nii.gz ${func_reg_dir}/vcheck/figure_func_mc_with_standard_brain_boundary.png ${func_min_dir}/masks/${func}_mask.nii.gz
+Do_cmd fslmaths ${ref_brain} ${func_reg_dir}/vcheck/standard_mask.nii.gz
+Do_cmd vcheck_reg ${func_reg_dir}/vcheck/func_mc_To_standard.nii.gz ${ref_brain} ${func_reg_dir}/vcheck/figure_func_mc_To_standard_with_std_brain_boundary.png ${func_reg_dir}/vcheck/standard_mask.nii.gz
+Do_cmd rm ${func_reg_dir}/vcheck/standard_mask.nii.gz
 
 ##--------------------------------------------
 ## Back to the directory
