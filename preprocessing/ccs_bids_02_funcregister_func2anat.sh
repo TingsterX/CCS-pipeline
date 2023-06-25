@@ -167,8 +167,9 @@ if [ ${dc_method} = "none" ]; then
 else
   rm -f ${epi}
   Do_cmd 3dcopy ${dc_dir}/example_func_unwarped.nii.gz ${epi}
+  Do_cmd cp ${dc_dir}/xfms/raw2unwarped.nii.gz ${func_pp_dir}/xfms/raw2unwarped.nii.gz
+  Do_cmd cp ${dc_dir}/xfms/unwarped2raw.nii.gz ${func_pp_dir}/xfms/unwarped2raw.nii.gz
 fi
-
 
 ##---------------------------------------------
 # generate the initial brain mask for unwarped image
@@ -287,9 +288,14 @@ if [ ${reg_method} == "flirt" ]; then
   popd
 fi
 
+##---------------------------------------------
 ## create the inverse affine anat -> func 
 Note "create the inverse affine and refine brain mask as func_pp_mask ..."
 Do_cmd convert_xfm -omat ${func_reg_dir}/xfm_${T1w_image}_To_example_func.mat -inverse ${func_reg_dir}/xfm_example_func_To_${T1w_image}.mat
+Note "convert affine matrix to warp file"
+Do_cmd convertwarp -m ${func_reg_dir}/xfm_example_func_To_${T1w_image}.mat -r ${anat_ref_brain} -o ${func_reg_dir}/xfm_example_func_To_${T1w_image}.nii.gz --relout --rel 
+Do_cmd convertwarp -m ${func_reg_dir}/xfm_${T1w_image}_To_example_func.mat -r ${epi} -o ${func_reg_dir}/xfm_${T1w_image}_To_example_func.nii.gz --relout --rel 
+
 ##---------------------------------------------
 ## refine brain mask by applying the affine to anatomical mask 
 Do_cmd flirt -ref ${epi} -in ${func_pp_dir}/masks/${T1w_image}_maskD.nii.gz -applyxfm -init ${func_reg_dir}/xfm_${T1w_image}_To_example_func.mat -interp nearestneighbour -out ${func_pp_dir}/masks/${func}_pp_mask.anatD.nii.gz
@@ -309,14 +315,18 @@ Do_cmd flirt -in ${anat_ref_brain} -ref ${epi} -applyxfm -init ${func_reg_dir}/x
 Do_cmd flirt -in ${anat_ref_gm} -ref ${epi} -applyxfm -init ${func_reg_dir}/xfm_${T1w_image}_To_example_func.mat -interp nearestneighbour -out ${func_reg_dir}/vcheck/${T1w_image}_gm_To_example_func.nii.gz
 # epi to anat
 Do_cmd flirt -in ${epi} -ref ${anat_ref_brain} -applyxfm -init ${func_reg_dir}/xfm_example_func_To_${T1w_image}.mat -interp spline -out ${func_reg_dir}/vcheck/example_func_To_${T1w_image}.nii.gz
-
-
+# apply affine can be done using the warp created
+#Do_cmd applywarp --rel --interp=spline --in=${epi} --warp=${func_reg_dir}/xfm_example_func_To_${T1w_image}.nii.gz --ref=${anat_ref_brain} --out=${func_reg_dir}/vcheck/example_func_To_${T1w_image}.nii.gz
+#Do_cmd applywarp --rel --interp=spline --in=${anat_ref_brain} --warp=${func_reg_dir}/xfm_${T1w_image}_To_example_func.nii.gz --ref=${epi} --out=${func_reg_dir}/vcheck/${T1w_image}_brain_To_example_func.nii.gz
+  
+##---------------------------------------------
 ## vcheck the registration quality
 Note "QC figures generating..."
 Do_cmd vcheck_mask_func ${epi} ${func_pp_dir}/masks/${func}_pp_mask.nii.gz ${func_pp_dir}/masks/${func}_pp_mask.png
 Do_cmd vcheck_reg ${epi} ${func_reg_dir}/vcheck/${T1w_image}_gm_To_example_func.nii.gz ${func_reg_dir}/vcheck/figure_example_func_with_anat_gm_boundary.png ${func_pp_dir}/masks/${func}_pp_mask.nii.gz
 Do_cmd vcheck_reg ${epi} ${func_reg_dir}/vcheck/${T1w_image}_brain_To_example_func.nii.gz ${func_reg_dir}/vcheck/figure_example_func_with_anat_brain_boundary.png ${func_pp_dir}/masks/${func}_pp_mask.nii.gz
 Do_cmd vcheck_reg ${func_reg_dir}/vcheck/example_func_To_${T1w_image}.nii.gz ${anat_ref_gm} ${func_reg_dir}/vcheck/figure_example_func_To_${T1w_image}_with_anat_gm_boundary.png ${anat_ref_mask}
+
 
 ##--------------------------------------------
 ## Back to the directory
