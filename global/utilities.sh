@@ -126,7 +126,7 @@ function vcheck_reg() {
   slicer tmp_rendered -s 2 \
     -x 0.30 sla.png -x 0.45 slb.png -x 0.50 slc.png -x 0.55 sld.png -x 0.70 sle.png \
     -y 0.30 slg.png -y 0.40 slh.png -y 0.50 sli.png -y 0.60 slj.png -y 0.70 slk.png \
-    -z 0.30 slm.png -z 0.40 sln.png -z 0.50 slo.png -z 0.60 slp.png -z 0.70 slq.png  
+    -z 0.40 slm.png -z 0.50 sln.png -z 0.60 slo.png -z 0.70 slp.png -z 0.80 slq.png   
   pngappend sla.png + slb.png + slc.png + sld.png  + sle.png render_vcheck1.png 
   pngappend slg.png + slh.png + sli.png + slj.png  + slk.png render_vcheck2.png
   pngappend slm.png + sln.png + slo.png + slp.png  + slq.png render_vcheck3.png
@@ -149,7 +149,7 @@ function vcheck_reg3() {
   slicer tmp_rendered -s 2 \
     -x 0.30 sla.png -x 0.45 slb.png -x 0.50 slc.png -x 0.55 sld.png -x 0.70 sle.png \
     -y 0.30 slg.png -y 0.40 slh.png -y 0.50 sli.png -y 0.60 slj.png -y 0.70 slk.png \
-    -z 0.30 slm.png -z 0.40 sln.png -z 0.50 slo.png -z 0.60 slp.png -z 0.70 slq.png  
+    -z 0.40 slm.png -z 0.50 sln.png -z 0.60 slo.png -z 0.70 slp.png -z 0.80 slq.png  
   pngappend sla.png + slb.png + slc.png + sld.png  + sle.png render_vcheck1.png 
   pngappend slg.png + slh.png + sli.png + slj.png  + slk.png render_vcheck2.png
   pngappend slm.png + sln.png + slo.png + slp.png  + slq.png render_vcheck3.png
