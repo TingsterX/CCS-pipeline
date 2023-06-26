@@ -112,6 +112,9 @@ cwd=$( pwd )
 cd ${func_reg_dir}
 if [ ${dc_method} = "none" ]; then
   Info "Combine warp for non-distortion corrected data ..."
+  Do_cmd convertwarp --relout --rel --ref=${anat_ref_head} --premat=${xfm_func2anat} --out=${func_reg_dir}/func_mc2${T1w_image}.nii.gz
+  Do_cmd convertwarp --relout --rel --ref=${epi_bc_raw} --premat=${xfm_anat2func} --out=${func_reg_dir}/${T1w_image}2func_mc.nii.gz
+
   Do_cmd convertwarp --relout --rel --ref=${ref_brain} --premat=${xfm_func2anat} --warp1=${xfm_anat2std} --out=${func_reg_dir}/func_mc2standard.nii.gz
   Do_cmd convertwarp --relout --rel --ref=${epi_bc_raw} --warp1=${xfm_std2anat} --postmat=${xfm_anat2func} --out=${func_reg_dir}/standard2func_mc.nii.gz
 else
@@ -120,7 +123,7 @@ else
   Do_cmd convertwarp --relout --rel --ref=${anat_ref_head} --warp1=${xfm_raw2unwarp} --postmat=${xfm_func2anat} --out=${func_reg_dir}/func_mc2${T1w_image}.nii.gz
   Do_cmd convertwarp --relout --rel --ref=${epi_bc_raw} --premat=${xfm_anat2func} --warp1=${xfm_unwarp2raw} --out=${func_reg_dir}/${T1w_image}2func_mc.nii.gz
   # func raw <-> standard
-  Do_cmd convertwarp --relout --rel --ref=${ref_brain} --warp1=${func_reg_dir}/func2${T1w_image}.nii.gz --warp2=${xfm_anat2std} --out=${func_reg_dir}/func_mc2standard.nii.gz
+  Do_cmd convertwarp --relout --rel --ref=${ref_brain} --warp1=${func_reg_dir}/func_mc2${T1w_image}.nii.gz --warp2=${xfm_anat2std} --out=${func_reg_dir}/func_mc2standard.nii.gz
   Do_cmd convertwarp --relout --rel --ref=${func_min_dir}/example_func.nii.gz --warp1=${xfm_std2anat} --warp1=${func_reg_dir}/${T1w_image}2func_mc.nii.gz --out=${func_reg_dir}/standard2func_mc.nii.gz
 fi
 ##------------------------------------------------

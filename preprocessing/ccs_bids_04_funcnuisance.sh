@@ -1,153 +1,156 @@
 #!/usr/bin/env bash
 
 ##########################################################################################################################
-## CCS SCRIPT TO DO REGRESS OUT NUISANCE COVARIATES FROM RESTING_STATE SCAN
-## Revised from Xi-Nian Zuo https://github.com/zuoxinian/CCS
-## Ting Xu, 202204, BIDS format input
+## Revised from https://github.com/zuoxinian/CCS
+## Ting Xu, functional preprocessing
 ##########################################################################################################################
 
+Usage() {
+	cat <<EOF
 
+${0}: Function Pipeline: brain extraction
 
-while test $# -gt 0; do
-    case "$1" in   
-      -d)
-        shift
-        if test $# -gt 0; then
-          export base_directory=$1
-        else
-          echo "No base directory specified (path/to/subject_folder)"
-          exit 1
-        fi
-        shift
-        ;;
-      --subject*)
-        shift
-        if test $# -gt -0; then
-          export subject=$1
-        else
-          echo "No subject ID specified (sub-******)"
-        fi
-        shift
-        ;;
-      --session*)
-		  	shift
-			  if test $# -gt 0; then
-				  export session=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify session number"
-			  fi
-			  shift
-			  ;;
-      --run*)
-        shift
-			  if test $# -gt 0; then
-				  export run=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify run number"
-			  fi
-			  shift
-			  ;;
-      --func-name*)
-        shift
-			  if test $# -gt 0; then
-				  export rest=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify session number"
-			  fi
-			  shift
-			  ;;
-      --svd)
-        shift
-        export svd=true
-        ;;
-      --rerun)
-        shift
-        export rerun=true
-        ;;
-      --dc-method)
-        shift
-        export dc_method=$1
-        shift
-        ;;
-      *)
-        echo "Invalid input"
-        exit 0
-    esac
-done
+Usage: ${0}
+  --func_dir=<functional directory>, e.g. base_dir/subID/func/sub-X_task-X/
+  --func_name=[func], name of the functional data, default=func (e.g. <func_dir>/func.nii.gz)
+  --anat_dir=<anatomical directory>, specify the anat directory 
+  --anat_seg_name=[segment, segment_fast], name of the anatomical segmention directory, default=segment
+  --dc_method=[none, topup, fugue, omni]
+  --average_method=[mean, svd], use mean or svd to extract signal, default=mean
+  --func_min_dir_name=[func_minimal], default=func_minimal
+EOF
+}
 
-exec > >(tee "Logs/${subject}/04_funcnuisance_log.txt") 2>&1
-set -x 
-
-if [ -z ${dc_method} ]; then
-  export dc_method=nondc
+# Return a Usage statement
+if [ "$#" = "0" ]; then
+    Usage
+    exit 1
 fi
 
-## directory setup
-func_dir=${base_directory}/${subject}/${session}/func_${dc_method}
-func_min_dir=${base_directory}/${subject}/${session}/func_minimal
-func_reg_dir=${func_dir}/func_reg
-func_seg_dir=${func_dir}/func_seg
-nuisance_dir=${func_dir}/func_nuisance
+# function for parsing options
+getopt1() {
+  sopt="$1"
+  shift 1
+  for fn in $@ ; do
+    if [ `echo $fn | grep -- "^${sopt}=" | wc -w` -gt 0 ] ; then
+     echo $fn | sed "s/^${sopt}=//"
+     return 0
+    fi
+  done
+}
 
-func_input=${func_reg_dir}/${rest}_gms.nii.gz
+defaultopt() {
+    echo $1
+}
 
+source ${CCSPIPELINE_DIR}/global/utilities.sh
+## arguments pasting
+func_dir=`getopt1 "--func_dir" $@`
+func_name=`getopt1 "--func_name" $@`
+anat_dir=`getopt1 "--anat_dir" $@`
+anat_seg_name=`getopt1 "--anat_seg_name" $@`
+dc_method=`getopt1 "--dc_method" $@`
+average_method=`getopt1 "--average_method" $@`
+func_min_dir_name=`getopt1 "--func_min_dir_name" $@`
 
-if [ -z ${svd} ]; then svd=false; fi
-if [ -z ${if_rerun} ]; then if_rerun=false; fi
+## default parameter
+func=`defaultopt ${func_name} func`
+dc_method=`defaultopt ${dc_method} none`
+average_method=`defaultopt ${average_method} mean`
+func_min_dir_name=`defaultopt ${func_min_dir_name} func_minimal`
 
-if [ ${svd} == "true" ]; then
-  average_method="svd"
+## Setting up logging
+#exec > >(tee "Logs/${func_dir}/${0/.sh/.txt}") 2>&1
+#set -x 
+
+Title "func preprocessing step 1: generate mask for minimal preprocessed dta"
+Note "func_name=           ${func}"
+Note "func_dir=            ${func_dir}"
+Note "anat_dir=            ${anat_dir}"
+Note "dc_method=           ${dc_method}"
+Note "average_method=      ${average_method}"
+Note "func_min_dir_name=   ${func_min_dir_name}"
+echo "------------------------------------------------"
+
+# set func_reg_dir
+if [ ${dc_method} = "none" ]; then
+  func_pp_dir_name=func_non_dc
+elif [ ${dc_method} = "topup" ]; then
+  func_pp_dir_name=func_dc_topup
+elif [ ${dc_method} = "fugue" ]; then
+  func_pp_dir_name=func_dc_fugue
+elif [ ${dc_method} = "omni" ]; then
+  func_pp_dir_name=func_dc_omni
 else
-  average_method="mean"
+  Error "--dc_method distortion correction method has to be none, topup, fugue, omni"
+  exit 1
+fi
+
+func_min_dir=${func_dir}/${func_min_dir_name}
+func_pp_dir=${func_dir}/${func_pp_dir_name}
+func_seg_dir=${func_pp_dir}/segment
+nuisance_dir=${func_pp_dir}/nuisance
+
+# ----------------------------------------------------
+
+if [ ! ${average_method} = "mean" ] && [ ! ${average_method} = "svd" ]; then
+  Error "--average_method has to be mean or svd"
+  exit 1
 fi
 
 if [ ! -f ${func_seg_dir}/global_mask.nii.gz ] || [ ! -f ${func_seg_dir}/csf_mask.nii.gz ] || [ ! -f ${func_seg_dir}/wm_mask.nii.gz ]; then
-  echo -e \\"e[0;41m !!!Check!!! \\e[0m"
-  echo "!!!Check the functional segmentation files"
-  exit
+  Error "!!!Check the functional segmentation files in ${func_seg_dir}"
+  exit 1
 fi
 
-if [ ! -f ${func_min_dir}/${rest}_mc.1D ]; then
-  echo -e \\"e[0;41m !!!Check!!! \\e[0m"
-  echo "!!!Check the motion file generated in the func minimal preprocess step"
-  exit
+if [ ! -f ${func_min_dir}/${func}_mc.1D ]; then
+  Error "!!!Check the motion file generated in the func minimal preprocess step"
+  exit 1
 fi
 
-echo --------------------------------------------
-echo !!!! RUNNING NUISANCE SIGNAL REGRESSION !!!!
-echo --------------------------------------------
-
+# ----------------------------------------------------
 cwd=$( pwd )
+mkdir -p ${nuisance_dir}
 
-if [ ${if_rerun} == "true" ]; then
-  rm -f ${nuisance_dir}/*
+echo --------------------------------------------
+Title "Run nuisance step ..."
+echo --------------------------------------------
+
+func_input=${func_pp_dir}/${func}_gms.nii.gz
+## Skull Strip the func dataset
+if [[ ! -f ${func_pp_dir}/${func}_gms.nii.gz ]] ; then
+  Info ">> Skullstrip the func dataset using the refined rest_pp_mask"
+  Do_cmd rm -f ${func_pp_dir}/${func}_ss.nii.gz
+  Do_cmd mri_mask ${func_min_dir}/${func}_mc.nii.gz ${func_pp_dir}/example_func_pp_mask.nii.gz ${func_pp_dir}/${func}_ss.nii.gz
+  Do_cmd fslmaths ${func_pp_dir}/${func}_ss.nii.gz -ing 10000 ${func_pp_dir}/${func}_gms.nii.gz
+else
+  Info ">> Skullstrip strip the func dataset using the example_func_pp_mask (done, skip)"
 fi
 
-## 1. make nuisance directory
-mkdir -p ${nuisance_dir}; cd ${nuisance_dir}
-
+## make nuisance directory
+cd ${nuisance_dir}
 
 nvols=`fslnvols ${func_input}`
 ## 2. Prepare regressors
 if [ ${nvols} -ne `cat Model_Motion24_CSF_WM_Global.txt | wc -l` ] && [ ${nvols} -ne `cat Model_Motion24_CSF_WM.txt | wc -l` ] ; then
   ## 2.1 generate the temporal derivates of motion
-  cp ${func_min_dir}/${rest}_mc.1D ${nuisance_dir}/${rest}_mc.1D
-  1d_tool.py -infile ${rest}_mc.1D -derivative -write ${rest}_mcdt.1D
+  Do_cmd cp ${func_min_dir}/${func}_mc.1D ${nuisance_dir}/${func}_mc.1D
+  Do_cmd 1d_tool.py -infile ${func}_mc.1D -derivative -write ${func}_mcdt.1D
   ## 2.2 Seperate motion parameters into seperate files
-  echo "Splitting up ${subject} motion parameters"
-  awk '{print $1}' ${rest}_mc.1D > mc1.1D
-  awk '{print $2}' ${rest}_mc.1D > mc2.1D
-  awk '{print $3}' ${rest}_mc.1D > mc3.1D
-  awk '{print $4}' ${rest}_mc.1D > mc4.1D
-  awk '{print $5}' ${rest}_mc.1D > mc5.1D
-  awk '{print $6}' ${rest}_mc.1D > mc6.1D
-  awk '{print $1}' ${rest}_mcdt.1D > mcdt1.1D
-  awk '{print $2}' ${rest}_mcdt.1D > mcdt2.1D
-  awk '{print $3}' ${rest}_mcdt.1D > mcdt3.1D
-  awk '{print $4}' ${rest}_mcdt.1D > mcdt4.1D
-  awk '{print $5}' ${rest}_mcdt.1D > mcdt5.1D
-  awk '{print $6}' ${rest}_mcdt.1D > mcdt6.1D
-  echo "Preparing 1D files for Friston-24 motion correction"
+  Info "Splitting up ${subject} motion parameters"
+  awk '{print $1}' ${func}_mc.1D > mc1.1D
+  awk '{print $2}' ${func}_mc.1D > mc2.1D
+  awk '{print $3}' ${func}_mc.1D > mc3.1D
+  awk '{print $4}' ${func}_mc.1D > mc4.1D
+  awk '{print $5}' ${func}_mc.1D > mc5.1D
+  awk '{print $6}' ${func}_mc.1D > mc6.1D
+  awk '{print $1}' ${func}_mcdt.1D > mcdt1.1D
+  awk '{print $2}' ${func}_mcdt.1D > mcdt2.1D
+  awk '{print $3}' ${func}_mcdt.1D > mcdt3.1D
+  awk '{print $4}' ${func}_mcdt.1D > mcdt4.1D
+  awk '{print $5}' ${func}_mcdt.1D > mcdt5.1D
+  awk '{print $6}' ${func}_mcdt.1D > mcdt6.1D
+  Info "Preparing 1D files for Friston-24 motion correction"
   for ((k=1 ; k <= 6 ; k++)); do
     # calculate the squared MC files
     1deval -a mc${k}.1D -expr 'a*a' > mcsqr${k}.1D
@@ -157,19 +160,19 @@ if [ ${nvols} -ne `cat Model_Motion24_CSF_WM_Global.txt | wc -l` ] && [ ${nvols}
   done
   # Extract signal for global, csf, and wm
   ## 2.3. Global
-  echo "Extracting global signal"
+  Info "Extracting global signal"
   3dmaskave -mask ${func_seg_dir}/global_mask.nii.gz -quiet ${func_input} > global.1D
   ## 2.4 csf matter
-  echo "Extracting signal from csf"
+  Info "Extracting signal from csf"
   3dmaskSVD -vnorm -mask ${func_seg_dir}/csf_mask.nii.gz -polort 0 ${func_input} > csf_qvec.1D
   3dmaskave -mask ${func_seg_dir}/csf_mask.nii.gz -quiet ${func_input} > csf.1D
   ## 2.5. white matter
-  echo "Extracting signal from white matter"
+  Info "Extracting signal from white matter"
   3dmaskSVD -vnorm -mask ${func_seg_dir}/wm_mask.nii.gz -polort 0 ${func_input} > wm_qvec.1D
   3dmaskave -mask ${func_seg_dir}/wm_mask.nii.gz -quiet ${func_input} > wm.1D
   ## 2.6 CompCor file
-  echo "Calculating CompCor components "
-  fslmaths ${func_seg_dir}/wm_mask.nii.gz -add ${func_seg_dir}/csf_mask.nii.gz -mul ${func_reg_dir}/${rest}_pp_mask.nii.gz -bin tmp_csfwm_mask.nii.gz
+  Info "Calculating CompCor components "
+  fslmaths ${func_seg_dir}/wm_mask.nii.gz -add ${func_seg_dir}/csf_mask.nii.gz -bin tmp_csfwm_mask.nii.gz
   3dmaskSVD -vnorm -mask tmp_csfwm_mask.nii.gz -sval 4 -polort 0 ${func_input} > csfwm_qvec5.1D
   rm tmp_csfwm_mask.nii.gz
   ##  Seperate SVD parameters into seperate files
@@ -180,7 +183,7 @@ if [ ${nvols} -ne `cat Model_Motion24_CSF_WM_Global.txt | wc -l` ] && [ ${nvols}
   awk '{print $5}' csfwm_qvec5.1D > compcor5.1D
   1dcat compcor1.1D compcor2.1D compcor3.1D compcor4.1D compcor5.1D > compcor_1-5.txt
   
-  echo "Prepare different nuisance regression models"
+  Info "Prepare different nuisance regression models"
   ## Concatenate regressor for the nuisance regression
   1dcat mc1.1D mc2.1D mc3.1D mc4.1D mc5.1D mc6.1D > mc_1-6.txt
   1dcat mcsqr1.1D mcsqr2.1D mcsqr3.1D mcsqr4.1D mcsqr5.1D mcsqr6.1D > mcsqr_1-6.txt
@@ -212,19 +215,19 @@ if [ ${nvols} -ne `cat Model_Motion24_CSF_WM_Global.txt | wc -l` ] && [ ${nvols}
   1dcat mc_1-6.txt compcor_1-5.txt global.1D > Model_Motion6_CompCor_Global.txt
 
   ## clean-up
-  rm mc[1-6].1D mcar[1-6].1D mcarsqr[1-6].1D mcdt[1-6].1D mcsqr[1-6].1D compcor?.1D
+  Do_cmd rm mc[1-6].1D mcar[1-6].1D mcarsqr[1-6].1D mcdt[1-6].1D mcsqr[1-6].1D compcor?.1D
 
-  echo ">> Visualize the nuisance"
+  Info ">> Visualize the nuisance"
   1dplot -xlabel "Frame" -ylabel "headmotion (mm)" -yaxis -0.5:0.5:4:8 -png vcheck_motion_0.5.png mc_1-6.txt
   1dplot -xlabel "Frame" -ylabel "headmotion (mm)" -yaxis -1:1:4:8 -png vcheck_motion_1.png mc_1-6.txt
-  1dplot -xlabel "Frame" -ylabel "roll:blk,pitch:r,yaw:g,dS:blue,dL:pink,dP:yellow" -one -png vcheck_motion.png mc_1-6.txt
+  1dplot -xlabel "Frame" -ylabel "roll:blk,pitch:r,yaw:g,dS:blue,dL:pink,dP:yellow" -png vcheck_motion.png mc_1-6.txt
   1dplot -xlabel "Frame" -ylabel "CSF(blk)/WM(r)/Global(g)" -demean -png vcheck_csf_wm_global.png csf_wm_global.txt
   1dplot -xlabel "Frame" -ylabel "Global" -demean -png vcheck_global.png global.1D
   1dplot -xlabel "Frame" -ylabel "Global" -demean -png vcheck_csf.png csf.1D
   1dplot -xlabel "Frame" -ylabel "Global" -demean -png vcheck_wm.png wm.1D
   1dplot -xlabel "Frame" -ylabel "CompCor" -norm2 -png vcheck_compcor.png compcor_1-5.txt
 else
-  echo "Note: the nuisance files are existing, skip..."
+  Info "Note: the nuisance files are existing, skip..."
 fi
 
 cd ${cwd}

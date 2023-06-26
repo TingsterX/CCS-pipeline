@@ -1,177 +1,153 @@
 #!/usr/bin/env bash
 
 ##########################################################################################################################
-## CCS SCRIPT TO DO SEGMENTATION OF FUNCTIONAL SCAN
-## Xi-Nian Zuo, Aug. 13, 2011; Revised at IPCAS, Feb. 12, 2013.
-## Ting Xu, 202204, BIDS format input
+## Revised from https://github.com/zuoxinian/CCS
+## Ting Xu, functional preprocessing
 ##########################################################################################################################
 
-while test $# -gt 0; do
-    case "$1" in   
-      -d)
-        shift
-        if test $# -gt 0; then
-          export base_directory=$1
-        else
-          echo "No base directory specified (path/to/subject_folder)"
-          exit 1
-        fi
-        shift
-        ;;
-      --subject*)
-        shift
-        if test $# -gt -0; then
-          export subject=$1
-        else
-          echo "No subject ID specified (sub-******)"
-        fi
-        shift
-        ;;
-      --session*)
-		  	shift
-			  if test $# -gt 0; then
-				  export session=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify session number"
-			  fi
-			  shift
-			  ;;
-      --run*)
-        shift
-			  if test $# -gt 0; then
-				  export run=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify run number"
-			  fi
-			  shift
-			  ;;
-      --func-name*)
-        shift
-			  if test $# -gt 0; then
-				  export rest=`echo $1 | sed -e 's/^[^=]*=//g'`
-			  else
-				  echo "Need to specify session number"
-			  fi
-			  shift
-			  ;;
-      --dc-method)
-        shift
-        export dc_method=$1
-        shift
-        ;;
-      *)
-        echo "Invalid input"
-        exit 0
-    esac
-done
+Usage() {
+	cat <<EOF
 
-exec > >(tee "Logs/${subject}/03_funcsegment_log.txt") 2>&1
-set -x 
+${0}: Function Pipeline: brain extraction
 
-if [ -z ${dc_method} ]; then
-  dc_method=nondc
-fi
-
-## directory setup
-anat_dir=${base_directory}/${subject}/${session}/anat
-func_dir=${base_directory}/${subject}/${session}/func_${dc_method}
-func_reg_dir=${func_dir}/func_reg
-func_seg_dir=${func_dir}/func_seg
-SUBJECTS_DIR=${base_directory}/${subject}/${session}
-
-echo -----------------------------------------
-echo !!!! RUNNING FUNCTIONAL SEGMENTATION !!!!
-echo -----------------------------------------
-
-if [ -f ${anat_dir}/segment/segment_csf_erode1.nii.gz ] && [ -f ${anat_dir}/segment/segment_wm_erode1.nii.gz ]; then
-  anat_seg_dir=${anat_dir}/segment
-  echo "use freesurfer segment (erode1) "
-elif [ -f ${anat_dir}/segment_fast/segment_csf_erode1.nii.gz ] && [ -f ${anat_dir}/segment_fast/segment_wm_erode1.nii.gz ];then
-  anat_seg_dir=${anat_dir}/segment_fast
-  echo "use FSL FAST segment (erode1) "
-else
-  echo "!!! No wm/csf segment of anatomical images. Please check anatsurface preprocess"
-  exit
-fi
-
-if [ ! -e ${func_reg_dir}/bbregister.dof6.dat ]; then
-  echo "!!! No func-anat registration file. Please check func2anat preprocess"
-  exit
-fi
-
-if [ -z ${if_redo} ]; then
-  if_redo=false
-fi
-
-##----------------------------------------
-## define vcheck funcion
-vcheck (){
-    underlay=$1
-    overlay=$2
-    figout=$3
-    workdir=`dirname ${figout}`
-    pushd ${workdir}
-    bg_min=`fslstats ${underlay} -P 1`
-    bg_max=`fslstats ${underlay} -P 99`
-    overlay 1 1 ${underlay} ${bg_min} ${bg_max} ${overlay} 1 1 rendered_mask
-    slicer rendered_mask -s 2 \
-      -z 0.30 sl1.png -z 0.40 sl2.png -z 0.45 sl3.png -z 0.50 sl4.png -z 0.55 sl5.png \
-      -z 0.60 sl6.png -z 0.70 sl7.png -z 0.80 sl8.png -z 0.90 sl9.png 
-    pngappend sl1.png + sl2.png + sl3.png + sl4.png + sl5.png + sl6.png + sl7.png + sl8.png + sl9.png ${figout} 
-    rm -f rendered_mask.nii.gz sl?.png
-    popd
+Usage: ${0}
+  --func_dir=<functional directory>, e.g. base_dir/subID/func/sub-X_task-X/
+  --func_name=[func], name of the functional data, default=func (e.g. <func_dir>/func.nii.gz)
+  --anat_dir=<anatomical directory>, specify the anat directory 
+  --anat_ref_name=<T1w, T2w>, name of the anatomical reference name, default=T1w
+  --anat_seg_name=[segment, segment_fast], name of the anatomical segmention directory, default=segment
+  --dc_method=[none, topup, fugue, omni]
+  --func_min_dir_name=[func_minimal], default=func_minimal
+EOF
 }
+
+# Return a Usage statement
+if [ "$#" = "0" ]; then
+    Usage
+    exit 1
+fi
+
+# function for parsing options
+getopt1() {
+  sopt="$1"
+  shift 1
+  for fn in $@ ; do
+    if [ `echo $fn | grep -- "^${sopt}=" | wc -w` -gt 0 ] ; then
+     echo $fn | sed "s/^${sopt}=//"
+     return 0
+    fi
+  done
+}
+
+defaultopt() {
+    echo $1
+}
+
+source ${CCSPIPELINE_DIR}/global/utilities.sh
+## arguments pasting
+func_dir=`getopt1 "--func_dir" $@`
+func_name=`getopt1 "--func_name" $@`
+anat_dir=`getopt1 "--anat_dir" $@`
+anat_ref_name=`getopt1 "--anat_ref_name" $@`
+anat_seg_name=`getopt1 "--anat_seg_name" $@`
+dc_method=`getopt1 "--dc_method" $@`
+func_min_dir_name=`getopt1 "--func_min_dir_name" $@`
+
+## default parameter
+func=`defaultopt ${func_name} func`
+anat_ref_name=`defaultopt ${anat_ref_name} T1w`
+anat_seg_name=`defaultopt ${anat_seg_name} segment`
+dc_method=`defaultopt ${dc_method} none`
+func_min_dir_name=`defaultopt ${func_min_dir_name} func_minimal`
+
+## Setting up logging
+#exec > >(tee "Logs/${func_dir}/${0/.sh/.txt}") 2>&1
+#set -x 
+
+Title "func preprocessing step 1: generate mask for minimal preprocessed dta"
+Note "func_name=           ${func}"
+Note "func_dir=            ${func_dir}"
+Note "anat_dir=            ${anat_dir}"
+Note "anat_ref_name=       ${anat_ref_name}"
+Note "dc_method=           ${dc_method}"
+Note "func_min_dir_name=   ${func_min_dir_name}"
+echo "------------------------------------------------"
+
+T1w_image=${anat_ref_name}_acpc_dc
+anat_ref_head=${anat_dir}/${T1w_image}.nii.gz
+anat_ref_brain=${anat_dir}/${T1w_image}_brain.nii.gz
+anat_ref_mask=${anat_dir}/${T1w_image}_brain_mask.nii.gz
+
+anat_ref_gm=${anat_dir}/${anat_seg_name}/segment_gm.nii.gz
+anat_ref_csf=${anat_dir}/${anat_seg_name}/segment_csf.nii.gz
+anat_ref_wm=${anat_dir}/${anat_seg_name}/segment_wm_erode1.nii.gz
+
+func_min_dir=${func_dir}/${func_min_dir_name}
+
+# set func_reg_dir
+if [ ${dc_method} = "none" ]; then
+  func_pp_dir_name=func_non_dc
+elif [ ${dc_method} = "topup" ]; then
+  func_pp_dir_name=func_dc_topup
+elif [ ${dc_method} = "fugue" ]; then
+  func_pp_dir_name=func_dc_fugue
+elif [ ${dc_method} = "omni" ]; then
+  func_pp_dir_name=func_dc_omni
+else
+  Error "--dc_method distortion correction method has to be none, topup, fugue, omni"
+  exit 1
+fi
+
+func_pp_dir=${func_dir}/${func_pp_dir_name}
+func_reg_dir=${func_dir}/${func_pp_dir_name}/xfms
+func_seg_dir=${func_pp_dir}/segment
+# ----------------------------------------------------
+
+Title "Extract functional segmentation ..."
+
+if [ ! -f ${anat_ref_wm} ] || [ ! -f ${anat_ref_csf} ] || [ ! -f ${anat_ref_gm} ]; then
+  Error "!!! No wm/csf segment of anatomical images. Please check anatsurface preprocess"
+  exit 1 
+fi
+
 ## -----------------------------------------
 
-## 1. Make segment dir
-mkdir -p ${func_seg_dir}
-
+## 
 cwd=$( pwd )
+
 ## 2. Change to func dir
+mkdir -p ${func_seg_dir}
 cd ${func_seg_dir}
 
-## 3. Global (brainmask): refined mask from registration step
-if [ ! -e ${func_seg_dir}/global_mask.nii.gz ]; then 
-  3dcopy ${func_reg_dir}/${rest}_pp_mask.nii.gz ${func_seg_dir}/global_mask.nii.gz
-  vcheck ${func_reg_dir}/example_func.nii.gz ${func_seg_dir}/global_mask.nii.gz ${func_seg_dir}/global_mask.png
+## Global (brainmask)
+if [[ ! -f ${func_seg_dir}/global_mask.nii.gz ]]; then 
+  Info ">> Registering global csf to raw func space"
+  3dcopy ${func_pp_dir}/example_func_pp_mask.nii.gz ${func_seg_dir}/global_mask.nii.gz
+  vcheck_mask_func ${func_min_dir}/example_func.nii.gz ${func_seg_dir}/global_mask.nii.gz ${func_seg_dir}/global_mask.png
 fi
 
-## CSF
-## 4. Register csf to native space
-#FS
-if [ ${if_redo} == "true" ] || [[ ! -f ${func_seg_dir}/csf_mask.nii.gz ]]; then
-  echo ">> Registering ${subject} csf to native func space"
-  mri_label2vol --seg ${anat_seg_dir}/segment_csf_erode1.nii.gz --reg ${func_reg_dir}/bbregister.dof6.dat --temp ${func_reg_dir}/example_func.nii.gz --fillthresh 0.1 --o ${func_seg_dir}/csf2func.nii.gz --pvf ${func_seg_dir}/csf2func_pvf.nii.gz
-  fslmaths ${func_seg_dir}/csf2func.nii.gz -mas ${func_seg_dir}/global_mask.nii.gz -bin ${func_seg_dir}/csf_mask.nii.gz
-  vcheck ${func_reg_dir}/example_func.nii.gz ${func_seg_dir}/csf_mask.nii.gz ${func_seg_dir}/csf_mask.png
-else
-  echo ">> Registering ${subject} csf to native func space (done, skip)"
+## CSF 
+if [[ ! -f ${func_seg_dir}/csf_mask.nii.gz ]]; then
+  Info ">> Registering anat csf (erode1) to raw func space"
+  Do_cmd applywarp --rel --interp=nn --in=${anat_ref_csf} --ref=${func_min_dir}/example_func_bc.nii.gz --warp=${func_reg_dir}/${T1w_image}2func_mc.nii.gz --out=${func_seg_dir}/csf_mask.nii.gz
+  Do_cmd fslmaths ${func_seg_dir}/csf_mask.nii.gz -mas ${func_seg_dir}/global_mask.nii.gz -bin ${func_seg_dir}/csf_mask.nii.gz
+  Do_cmd vcheck_mask_func ${func_min_dir}/example_func.nii.gz ${func_seg_dir}/csf_mask.nii.gz ${func_seg_dir}/csf_mask.png
 fi
 
-## WM
-## 5. Register wm to native space
-#FS
-if [ ${if_redo} == "true" ] || [[ ! -f ${func_seg_dir}/wm_mask.nii.gz ]]; then
-  echo ">> Registering ${subject} wm to native func space"
-  mri_label2vol --seg ${anat_seg_dir}/segment_wm_erode1.nii.gz --reg ${func_reg_dir}/bbregister.dof6.dat --temp ${func_reg_dir}/example_func.nii.gz --fillthresh 0.95 --o ${func_seg_dir}/wm2func.nii.gz --pvf ${func_seg_dir}/wm2func_pvf.nii.gz
-  fslmaths ${func_seg_dir}/wm2func.nii.gz -mas ${func_seg_dir}/global_mask.nii.gz -bin ${func_seg_dir}/wm_mask.nii.gz
-  vcheck ${func_reg_dir}/example_func.nii.gz ${func_seg_dir}/wm_mask.nii.gz ${func_seg_dir}/wm_mask.png
-else
-  echo ">> Registering ${subject} wm to native func space (done, skip)"
+## CSF 
+if [[ ! -f ${func_seg_dir}/wm_mask.nii.gz ]]; then
+  Info ">> Registering anat wm (erode1) to raw func space"
+  Do_cmd applywarp --rel --interp=nn --in=${anat_ref_wm} --ref=${func_min_dir}/example_func_bc.nii.gz --warp=${func_reg_dir}/${T1w_image}2func_mc.nii.gz --out=${func_seg_dir}/wm_mask.nii.gz
+  Do_cmd fslmaths ${func_seg_dir}/wm_mask.nii.gz -mas ${func_seg_dir}/global_mask.nii.gz -bin ${func_seg_dir}/wm_mask.nii.gz
+  Do_cmd vcheck_mask_func ${func_min_dir}/example_func.nii.gz ${func_seg_dir}/wm_mask.nii.gz ${func_seg_dir}/wm_mask.png
 fi
 
-##---------------------------------------------
-## FS aseg 
-if [ -e ${SUBJECTS_DIR}/${subject}/mri/aparc.a2009s+aseg.mgz ]; then
-  if [ ${if_redo} == "true" ] || [[ ! -f ${func_seg_dir}/aseg2func.nii.gz ]]; then
-  echo ">> Register FS aseg to the func space"
-  mri_vol2vol --mov ${func_reg_dir}/example_func.nii.gz --targ ${SUBJECTS_DIR}/${subject}/mri/aparc.a2009s+aseg.mgz --inv --interp nearest --o ${func_seg_dir}/aparc.a2009s+aseg2func.nii.gz --reg ${func_reg_dir}/bbregister.dof6.dat --no-save-reg
-  mri_vol2vol --mov ${func_reg_dir}/example_func.nii.gz --targ ${SUBJECTS_DIR}/${subject}/mri/aparc+aseg.mgz --inv --interp nearest --o ${func_seg_dir}/aparc+aseg2func.nii.gz --reg ${func_reg_dir}/bbregister.dof6.dat --no-save-reg
-  mri_vol2vol --mov ${func_reg_dir}/example_func.nii.gz --targ ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz --inv --interp nearest --o ${func_seg_dir}/aseg2func.nii.gz --reg ${func_reg_dir}/bbregister.dof6.dat --no-save-reg
-  fi
-else
-  echo -e \\"e[0;41m !!!Check!!! \\e[0m"
-  echo "!!!FS aparc.a2009s+aseg is not existing. Check FS recon-all step"
+## GM
+if [[ ! -f ${func_seg_dir}/gm_mask.nii.gz ]]; then
+  Info ">> Registering anat gm to raw func space"
+  Do_cmd applywarp --rel --interp=nn --in=${anat_ref_gm} --ref=${func_min_dir}/example_func_bc.nii.gz --warp=${func_reg_dir}/${T1w_image}2func_mc.nii.gz --out=${func_seg_dir}/gm_mask.nii.gz
+  Do_cmd fslmaths ${func_seg_dir}/gm_mask.nii.gz -mas ${func_seg_dir}/global_mask.nii.gz -bin ${func_seg_dir}/gm_mask.nii.gz
+  Do_cmd vcheck_mask_func ${func_min_dir}/example_func.nii.gz ${func_seg_dir}/gm_mask.nii.gz ${func_seg_dir}/gm_mask.png
 fi
 
 cd ${cwd}

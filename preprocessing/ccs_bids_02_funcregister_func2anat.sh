@@ -114,7 +114,7 @@ fi
 
 ## If func_unwarped is 
 if [ ! ${dc_method} = "none" ]; then
-  Note "Distortion corrected example_func* image will be used..."
+  Info "Distortion corrected example_func* image will be used..."
   if [ ! -f ${dc_dir}/example_func_unwarped.nii.gz ]; then
     Error "example_func_unwarped.nii.gz is not in the ${dc_dir}"
     exit 1
@@ -157,39 +157,42 @@ func_reg_dir=${func_dir}/${func_pp_dir_name}/xfms
 mkdir -p ${func_reg_dir}
 mkdir -p ${func_pp_dir}/masks
 
-epi=${func_pp_dir}/example_func_bc.nii.gz
-epi_brain_init=${func_pp_dir}/masks/example_func_bc_brain.init.nii.gz
+Do_cmd rm -r ${func_pp_dir}/example_func_bc.nii.gz
+Do_cmd 3dcopy ${func_min_dir}/example_func_bc.nii.gz ${func_pp_dir}/example_func_bc.nii.gz
 
 ## copy the input example_func and 
 if [ ${dc_method} = "none" ]; then
-  rm -f ${epi}
-  Do_cmd 3dcopy ${func_min_dir}/example_func_bc.nii.gz ${epi}
+  epi=${func_pp_dir}/example_func_bc.nii.gz
+  epi_brain_init=${func_pp_dir}/masks/example_func_bc_brain.init.nii.gz
+  epi_brain=${func_pp_dir}/example_func_bc_brain.nii.gz
 else
+  epi=${func_pp_dir}/example_func_unwarped.nii.gz
+  epi_brain_init=${func_pp_dir}/masks/example_func_unwarped_brain.init.nii.gz
+  epi_brain=${func_pp_dir}/example_func_unwarped_brain.nii.gz
   rm -f ${epi}
-  Do_cmd 3dcopy ${dc_dir}/example_func_unwarped.nii.gz ${epi}
+  Do_cmd 3dcopy ${dc_dir}/example_func_unwarped.nii.gz ${func_pp_dir}/example_func_unwarped.nii.gz
   Do_cmd cp ${dc_dir}/xfms/raw2unwarped.nii.gz ${func_pp_dir}/xfms/raw2unwarped.nii.gz
   Do_cmd cp ${dc_dir}/xfms/unwarped2raw.nii.gz ${func_pp_dir}/xfms/unwarped2raw.nii.gz
 fi
 
 ##---------------------------------------------
 # generate the initial brain mask for unwarped image
+Info "Generate initial brain mask ..."
+Do_cmd rm -f ${func_pp_dir}/masks/${T1w_image}_maskD.nii.gz
+Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix ${func_pp_dir}/masks/${T1w_image}_maskD.nii.gz
 if [ ${dc_method} = "none" ]; then
-  Note "Use brain mask generated from func_minimal as the initial brain mask..."
+  Info "Use brain mask generated from func_minimal as the initial brain mask..."
   rm -f ${epi_brain_init}
   Do_cmd 3dcopy ${func_min_dir}/example_func_bc_brain.nii.gz ${epi_brain_init}
-  rm -f ${func_pp_dir}/masks/${T1w_image}_maskD.nii.gz
-  Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix ${func_pp_dir}/masks/${T1w_image}_maskD.nii.gz
 else
-  Note "Generate initial brain mask for distortion corrected example_func ..."
+  Info "Generate initial brain mask for distortion corrected example_func_unwarped ..."
   pushd ${func_pp_dir}
   # head to head initial registration
   Do_cmd flirt -in ${anat_ref_head} -ref ${epi} -out masks/${T1w_image}_To_example_func.init.nii.gz -omat masks/xfm_${T1w_image}_To_example_func.init.mat -cost corratio -dof 6 -interp spline
-  Do_cmd convert_xfm -omat masks/xfm_example_func_To_${T1w_image}.init.mat -inverse masks/xfm_example_func_To_${T1w_image}.init.mat 
+  Do_cmd convert_xfm -omat masks/xfm_example_func_To_${T1w_image}.init.mat -inverse masks/xfm_${T1w_image}_To_example_func.init.mat 
   ## do flirt -bbr
   Do_cmd flirt -in ${epi} -ref ${anat_ref_head} -cost bbr -wmseg ${anat_ref_wm4bbr} -omat masks/xfm_example_func_To_${T1w_image}.mat -dof 6 -init masks/xfm_example_func_To_${T1w_image}.init.mat 
   Do_cmd convert_xfm -omat masks/xfm_${T1w_image}_To_example_func.mat -inverse masks/xfm_example_func_To_${T1w_image}.mat
-  Do_cmd rm -f masks/${T1w_image}_maskD.nii.gz
-  Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix masks/${T1w_image}_maskD.nii.gz
   Do_cmd flirt -ref ${epi} -in masks/${T1w_image}_maskD.nii.gz -applyxfm -init masks/xfm_${T1w_image}_To_example_func.mat -interp nearestneighbour -out masks/${func}_mask.anatD.nii.gz
   # fill holes
   Do_cmd rm -f masks/${func}_mask.nii.gz
@@ -210,7 +213,7 @@ if [[ ${reg_method} == "fsbbr" ]]; then
   Do_cmd fslreorient2std fsbbr/tmp_example_func_brain_rsp.nii.gz > fsbbr/func_rsp2rpi.mat
   Do_cmd convert_xfm -omat fsbbr/func_rpi2rsp.mat -inverse fsbbr/func_rsp2rpi.mat
   echo "-----------------------------------------------------"
-  echo "func->anat registration method: Freesurfer bbregister"
+  Info "func->anat registration method: Freesurfer bbregister"
   echo "-----------------------------------------------------"
   if [[ -f ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz ]]; then
     ## do fs bbregist
@@ -248,7 +251,7 @@ if [[ ${reg_method} == "flirtbbr" ]]; then
   mkdir ${func_reg_dir}/flirtbbr
   pushd ${func_reg_dir}
   echo "-----------------------------------------------------"
-  echo "func->anat registration method: FSL flirt -bbr"
+  Info "func->anat registration method: FSL flirt -bbr"
   echo "-----------------------------------------------------"
   ## do flirt to init
   Do_cmd flirt -in ${epi} -ref ${anat_ref_head} -cost corratio -omat flirtbbr/xfm_func2anat.flirt_init.mat -dof 6
@@ -273,7 +276,7 @@ if [ ${reg_method} == "flirt" ]; then
   mkdir ${func_reg_dir}/flirt
   pushd ${func_reg_dir}
   echo "-----------------------------------------------------"
-  echo "func->anat registration method: FSL flirt"
+  Info "func->anat registration method: FSL flirt"
   echo "-----------------------------------------------------"
   Do_cmd flirt -in ${epi} -ref ${anat_ref_head} -cost corratio -omat flirt/xfm_func2anat.flirt_init.mat -dof 6
   Do_cmd convert_xfm -omat flirt/xfm_anat2func.flirt_init.mat -inverse flirt/xfm_func2anat.flirt_init.mat
@@ -290,9 +293,9 @@ fi
 
 ##---------------------------------------------
 ## create the inverse affine anat -> func 
-Note "create the inverse affine and refine brain mask as func_pp_mask ..."
+Info "create the inverse affine and refine brain mask as func_pp_mask ..."
 Do_cmd convert_xfm -omat ${func_reg_dir}/xfm_${T1w_image}_To_example_func.mat -inverse ${func_reg_dir}/xfm_example_func_To_${T1w_image}.mat
-Note "convert affine matrix to warp file"
+Info "convert affine matrix to warp file"
 Do_cmd convertwarp -m ${func_reg_dir}/xfm_example_func_To_${T1w_image}.mat -r ${anat_ref_brain} -o ${func_reg_dir}/xfm_example_func_To_${T1w_image}.nii.gz --relout --rel 
 Do_cmd convertwarp -m ${func_reg_dir}/xfm_${T1w_image}_To_example_func.mat -r ${epi} -o ${func_reg_dir}/xfm_${T1w_image}_To_example_func.nii.gz --relout --rel 
 
@@ -302,12 +305,18 @@ Do_cmd flirt -ref ${epi} -in ${func_pp_dir}/masks/${T1w_image}_maskD.nii.gz -app
 # fill holes
 Do_cmd rm -f ${func_pp_dir}/masks/${func}_pp_mask.nii.gz
 Do_cmd 3dmask_tool -input ${func_pp_dir}/masks/${func}_pp_mask.anatD.nii.gz -prefix ${func_pp_dir}/masks/${func}_pp_mask.nii.gz -fill_holes
-Do_cmd fslmaths ${epi} -mas ${func_pp_dir}/masks/${func}_pp_mask.nii.gz ${func_pp_dir}/example_func_bc_brain.nii.gz
+Do_cmd fslmaths ${epi} -mas ${func_pp_dir}/masks/${func}_pp_mask.nii.gz ${epi_brain}
 
+## refine brain mask to raw example_func space if distortion correction was applied
+if [ ${dc_method} = "none" ]; then
+  Do_cmd 3dcopy ${func_pp_dir}/masks/${func}_pp_mask.nii.gz ${func_pp_dir}/example_func_pp_mask.nii.gz
+else
+  Do_cmd applywarp --rel --interp=nn --in=${func_pp_dir}/masks/${func}_pp_mask.nii.gz --ref=${func_pp_dir}/example_func_bc.nii.gz --warp=${func_reg_dir}/unwarped2raw.nii.gz --out=${func_pp_dir}/example_func_pp_mask.nii.gz
+fi
 
 ##---------------------------------------------
 ## apply the affine
-Note "Apply affine to native structure images..."
+Info "Apply affine to native structure images..."
 # anat to epi
 mkdir ${func_reg_dir}/vcheck
 Do_cmd flirt -in ${anat_ref_head} -ref ${epi} -applyxfm -init ${func_reg_dir}/xfm_${T1w_image}_To_example_func.mat -interp spline -out ${func_reg_dir}/vcheck/${T1w_image}_To_example_func.nii.gz
@@ -321,7 +330,7 @@ Do_cmd flirt -in ${epi} -ref ${anat_ref_brain} -applyxfm -init ${func_reg_dir}/x
   
 ##---------------------------------------------
 ## vcheck the registration quality
-Note "QC figures generating..."
+Info "Generate QC figures for func -> anat registration ..."
 Do_cmd vcheck_mask_func ${epi} ${func_pp_dir}/masks/${func}_pp_mask.nii.gz ${func_pp_dir}/masks/${func}_pp_mask.png
 Do_cmd vcheck_reg ${epi} ${func_reg_dir}/vcheck/${T1w_image}_gm_To_example_func.nii.gz ${func_reg_dir}/vcheck/figure_example_func_with_anat_gm_boundary.png ${func_pp_dir}/masks/${func}_pp_mask.nii.gz
 Do_cmd vcheck_reg ${epi} ${func_reg_dir}/vcheck/${T1w_image}_brain_To_example_func.nii.gz ${func_reg_dir}/vcheck/figure_example_func_with_anat_brain_boundary.png ${func_pp_dir}/masks/${func}_pp_mask.nii.gz
