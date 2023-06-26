@@ -9,7 +9,7 @@
 Usage() {
 	cat <<EOF
 
-${0}: ANAT preprocess step 1: brain extraction
+${0}: ANAT preprocess step 3: surface reconstruction (human only)
 
 Usage: ${0}
 	--anat_dir=<anatomical directory>, e.g. base_dir/subID/anat or base_dir/subID/sesID/anat
@@ -111,7 +111,7 @@ if [ ! -f ${SUBJECTS_DIR}/${subject}/mri/brainmask.init.fs.mgz ]; then
   fi
   pushd ${SUBJECTS_DIR}/${subject}/mri
   ## generate the registration (FS - Input)
-  echo "Generate the registration file FS to input (rawavg) space ..."
+  Info "Generate the registration file FS to input (rawavg) space ..."
   Do_cmd tkregister2 --mov T1.mgz --targ rawavg.mgz --noedit --reg xfm_fs_To_rawavg.reg --fslregout xfm_fs_To_rawavg.FSL.mat    --regheader --s ${subject}
   # generate the inverse transformation matrix in FSL and lta (FS) format
   Do_cmd convert_xfm -omat xfm_rawavg_To_fs.FSL.mat -inverse xfm_fs_To_rawavg.FSL.mat
@@ -148,12 +148,12 @@ fi
 if [ ${rerun_FS} = "true" ] || [ ! -f segment_wm+sub+stem.nii.gz ]; then
   ## FS segmentation: 
   echo "-------------------------------------------"
-  echo "FS segmentation"
+  Info "FS segmentation"
   echo "-------------------------------------------"
   Do_cmd mkdir ${anat_dir}/segment
   Do_cmd cd ${anat_dir}/segment
   ## freesurfer version
-  echo "RUN >> Convert FS aseg to create csf/wm segment files"
+  Info "RUN >> Convert FS aseg to create csf/wm segment files"
   Do_cmd cp ${anat_dir}/${T1w}_acpc_brain_mask.nii.gz segment_brain.nii.gz
   #mri_convert -it mgz ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz -ot nii aseg.nii.gz
   Do_cmd mri_vol2vol --interp nearest --mov ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz --targ ${SUBJECTS_DIR}/${subject}mri/   rawavg.mgz --reg ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.reg --o aseg.nii.gz 
@@ -170,7 +170,7 @@ fi
 
 ## FAST segmentation: CSF: *_pve_0, GM: *_pve_1, WM: *_pve_2
 echo "-------------------------------------------"
-echo "FAST segmentation"
+Info "FAST segmentation"
 echo "-------------------------------------------"
 Do_cmd mkdir ${anat_dir}/segment_fast
 Do_cmd cd ${anat_dir}/segment_fast

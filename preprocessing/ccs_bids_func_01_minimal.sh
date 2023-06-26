@@ -8,7 +8,7 @@
 Usage() {
 	cat <<EOF
 
-${0}: Registration
+${0}: FUNC preprocess step 1: minimal preprocessing
 
 Usage: ${0}
   --func_dir=<functional directory>, e.g. base_dir/subID/func/sub-X_task-X/
@@ -131,7 +131,7 @@ cwd=$( pwd )
 mkdir -p ${func_min_dir}
 
 echo "---------------------------------------"
-echo "!!!! PREPROCESSING FUNCTIONAL SCAN !!!!"
+Title "!!!! PREPROCESSING FUNCTIONAL SCAN !!!!"
 echo "---------------------------------------"
 
 cd ${func_min_dir}
@@ -148,7 +148,7 @@ fi
 
 ## 0. Dropping first # TRS
 if [[ ! -f ${func}_dr.nii.gz ]]; then
-  Note "Dropping first ${ndvols} vols"
+  Info "Dropping first ${ndvols} vols"
   nvols=`fslnvols ${func}.nii.gz`
   ## first timepoint (remember timepoint numbering starts from 0)
   TRstart=${ndvols} 
@@ -163,10 +163,10 @@ fi
 ## 1. Despiking (particular helpful for motion)
 if [ ${do_despiking} = "true" ]; then
   if [[ ! -f ${func}_dspk.nii.gz ]]; then
-    Note "Despiking timeseries for this func dataset"
+    Info "Despiking timeseries for this func dataset"
     Do_cmd 3dDespike -prefix ${func}_dspk.nii.gz ${func}_dr.nii.gz
   else
-    Note "Despiking timeseries for this func dataset (done, skip)"
+    Info "Despiking timeseries for this func dataset (done, skip)"
   fi
   ts_input=${func}_dspk.nii.gz
 else
@@ -176,10 +176,10 @@ fi
 ## 2. Slice timing
 if [ ${do_slicetiming} = "true" ]; then
   if [[ ! -f ${func}_ts.nii.gz ]]; then
-    Note "Slice timing for this func dataset"
+    Info "Slice timing for this func dataset"
     Do_cmd 3dTshift -prefix ${func}_ts.nii.gz -tpattern ${tpattern} -tzero 0 ${ts_input}
   else
-    Note "Slice timing for this func dataset (done, skip)"
+    Info "Slice timing for this func dataset (done, skip)"
   fi
   ro_input=${func}_ts.nii.gz
 else
@@ -190,41 +190,41 @@ fi
 if [[ ! -f ${func}_ro.nii.gz ]]; then
   #echo "Deobliquing this func dataset"
   #3drefit -deoblique ${ro_input}
-  Note "Reorienting for this func dataset"
+  Info "Reorienting for this func dataset"
   Do_cmd 3dresample -orient RPI -inset ${ro_input} -prefix ${func}_ro.nii.gz
 else
-  Note "Reorienting for this func dataset (done, skip)"
+  Info "Reorienting for this func dataset (done, skip)"
 fi
 
 ##4. Motion correct to average of timeseries 
 if [[ ! -f ${func}_mc.nii.gz ]] || [[ ! -f ${func}_mc.1D ]]; then
-  Note "Motion correcting for this func dataset"
+  Info "Motion correcting for this func dataset"
   Do_cmd rm -f ${func}_ro_mean.nii.gz
   Do_cmd 3dTstat -mean -prefix ${func}_ro_mean.nii.gz ${func}_ro.nii.gz 
   Do_cmd 3dvolreg -Fourier -twopass -base ${func}_ro_mean.nii.gz -zpad 4 -prefix ${func}_mc.nii.gz -1Dfile ${func}_mc.1D -1Dmatrix_save ${func}_mc.affine.1D ${func}_ro.nii.gz
 else
-  Note "Motion correcting for this func dataset (done, skip)"
+  Info "Motion correcting for this func dataset (done, skip)"
 fi
 
 ##5 Extract one volume as an example_func (Lucky 8)
 if [[ ! -f example_func.nii.gz ]]; then
-  Note "Extract one volume (No.8) as an example_func"
+  Info "Extract one volume (No.8) as an example_func"
   let "n_example=${example_volume}-1"
   Do_cmd fslroi ${func}_mc.nii.gz example_func.nii.gz ${n_example} 1
 else
-  Note "Extract one volume (No.8) as an example_func (done, skip)"
+  Info "Extract one volume (No.8) as an example_func (done, skip)"
 fi
 
 ##6 Bias Field Correction (output is used for alignment only)
 if [[ ! -f example_func_bc.nii.gz ]]; then
-  Note "N4 Bias Field Correction, used for alignment only"
+  Info "N4 Bias Field Correction, used for alignment only"
 	Do_cmd fslmaths ${func}_mc.nii.gz -Tmean tmp_func_mc_mean.nii.gz
 	Do_cmd N4BiasFieldCorrection -i tmp_func_mc_mean.nii.gz -o tmp_func_bc.nii.gz
 	Do_cmd fslmaths tmp_func_mc_mean.nii.gz -sub tmp_func_bc.nii.gz ${func}_biasfield.nii.gz
 	Do_cmd fslmaths example_func.nii.gz -sub ${func}_biasfield.nii.gz example_func_bc.nii.gz
 	Do_cmd rm tmp_func_mc_mean.nii.gz tmp_func_bc.nii.gz
 else
-  Note "N4 Bias Field Correction, used for alignment only (done, skip)"
+  Info "N4 Bias Field Correction, used for alignment only (done, skip)"
 fi
 
 cd ${cwd}

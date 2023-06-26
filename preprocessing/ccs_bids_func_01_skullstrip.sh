@@ -8,7 +8,7 @@
 Usage() {
 	cat <<EOF
 
-${0}: Function Pipeline: brain extraction
+${0}: Function Pipeline step 1: brain extraction
 
 Usage: ${0}
   --func_dir=<functional directory>, e.g. base_dir/subID/func/sub-X_task-X/
@@ -118,7 +118,7 @@ cd ${func_min_dir}
 
 ## Prior mask from 3dAutomask or prior 
 if [[ ${use_automask_prior} = "true" ]]; then
-  echo "Skull stripping (3dAutomask) for this func dataset"
+  Info "Skull stripping (3dAutomask) for this func dataset"
   Do_cmd rm masks/${func}_mask.automD.nii.gz
   Do_cmd 3dAutomask -prefix masks/${func}_mask.automD.nii.gz -dilate 1 example_func_bc.nii.gz
   Do_cmd pushd ${func_min_dir}/masks
@@ -135,6 +135,7 @@ if [ ! -z ${mask_prior} ]; then
 fi
 
 ## refine the mask from the native anatomical image
+Info "Refine brain mask using native anatomical image"
 if [ ${use_prior_only} = "false" ]; then
   if [ -f ${func_min_dir}/masks/${func}_mask.initD.nii.gz ]; then
     ## anatomical brain as reference to refine the functional mask

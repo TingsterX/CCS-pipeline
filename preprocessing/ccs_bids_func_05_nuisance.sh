@@ -8,7 +8,7 @@
 Usage() {
 	cat <<EOF
 
-${0}: Function Pipeline: brain extraction
+${0}: Function Pipeline: extract nuisance
 
 Usage: ${0}
   --func_dir=<functional directory>, e.g. base_dir/subID/func/sub-X_task-X/

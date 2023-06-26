@@ -85,7 +85,7 @@ fi
 ## ======================================================
 ## 
 echo ----------------------------------------------------
-echo  PREPROCESSING ANATOMICAL SCAN - ACPC alignment
+Title  PREPROCESSING ANATOMICAL SCAN - ACPC alignment
 echo ----------------------------------------------------
 cwd=$( pwd )
 acpc_reg_dir=${anat_dir}/xfms

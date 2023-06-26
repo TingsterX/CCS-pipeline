@@ -9,7 +9,7 @@
 Usage() {
 	cat <<EOF
 
-${0}: Registration
+${0}: ANAT preprocess step 4:  Registration
 
 Usage: ${0}
   --ref_head=[template head], default=${FSLDIR}/data/standard/MNI152_T1_2mm.nii.gz
@@ -129,12 +129,12 @@ if [ ! -f ${T1w_brain} ]; then
 fi
 
 echo -----------------------------------------
-echo !!!! RUNNING ANATOMICAL REGISTRATION !!!!
+Title !!!! RUNNING ANATOMICAL REGISTRATION !!!!
 echo -----------------------------------------
 
 pushd ${anat_reg_dir}
 if [ ${reg_method} = "FSL" ]; then
-  Note "Registration using FSL"
+  Info "Registration using FSL"
 
   Do_cmd flirt -dof 12 -ref ${template_brain} -in ${T1w_brain} -omat ${anat_reg_dir}/acpc2standard.mat -cost corratio -searchcost corratio -interp spline -out ${anat_reg_dir}/flirt_${T1w_image}_to_standard.nii.gz
   Do_cmd convert_xfm -omat standard2acpc.mat -inverse acpc2standard.mat
@@ -142,7 +142,7 @@ if [ ${reg_method} = "FSL" ]; then
   Do_cmd invwarp -w ${RegTransform} -o ${RegInvTransform} -r ${template_head}
 
 elif [ ${reg_method} = "ANTS" ]; then
-  Note "Registration using ANTS (flirt affine)"
+  Info "Registration using ANTS (flirt affine)"
 
   Do_cmd flirt -dof 12 -ref ${template_brain} -in ${T1w_brain} -omat ${anat_reg_dir}/acpc2standard.mat -cost corratio -searchcost corratio -interp spline -out ${anat_reg_dir}/flirt_${T1w_image}_to_standard.nii.gz
   Do_cmd convert_xfm -omat standard2acpc.mat -inverse acpc2standard.mat
@@ -155,7 +155,7 @@ elif [ ${reg_method} = "ANTS" ]; then
   Do_cmd antsApplyTransforms -d 3 -i ${native_image} -r ${ref_nonlinear} -t [acpc2standard_itk_affine.mat,1] -t ${T1w_image}_to_template_1InverseWarp.nii.gz -o [ANTs_CombinedInvWarp.nii.gz,1]
 
   #Conversion of ANTs to FSL format
-  Note " ANTs to FSL warp conversion"
+  Info " ANTs to FSL warp conversion"
   # split 3 component vectors
   Do_cmd c4d -mcs ANTs_CombinedWarp.nii.gz -oo e1.nii.gz e2.nii.gz e3.nii.gz
   # split 3 component vectors for Inverse Warps
@@ -177,7 +177,9 @@ elif [ ${reg_method} = "ANTS" ]; then
 fi
 popd
 
+
 # applywarp to native space to template space T1w_acpc_* 
+Info "apply warp to native head and mask"
 Do_cmd applywarp --rel --interp=spline -i ${T1w_head} -r ${template_highres} -w ${RegTransform} -o ${atlas_space_dir}/${T1w_image}.nii.gz
 Do_cmd applywarp --rel --interp=nn -i ${T1w_mask} -r ${template_highres} -w ${RegTransform} -o ${atlas_space_dir}/${T1w_image}_brain_mask.nii.gz
 Do_cmd fslmaths ${atlas_space_dir}/${T1w_image}.nii.gz -mas ${atlas_space_dir}/${T1w_image}_brain_mask.nii.gz ${atlas_space_dir}/${T1w_image}_brain.nii.gz

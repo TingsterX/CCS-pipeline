@@ -107,18 +107,6 @@ echo "------------------------------------------------"
 # FSL BET threshold 
 bet_thr_tight=0.3 ; bet_thr_loose=0.1
 
-# vcheck function 
-vcheck_mask() {
-	underlay=$1
-	overlay=$2
-	figout=$3
-	title=$4
-	echo "----->> vcheck mask"
-	Do_cmd overlay 1 1 ${underlay} -a ${overlay} 1 1 tmp_rendered_mask.nii.gz
-	Do_cmd slicer tmp_rendered_mask.nii.gz -S 10 1200 ${figout}
-	Do_cmd rm -f tmp_rendered_mask.nii.gz
-}
-
 ## ======================================================
 ## 
 echo ----------------------------------------------------
@@ -170,13 +158,13 @@ Do_cmd mkdir -p ${anat_dir}/mask
 if [ ${do_skullstrip} = true ]; then
 	# Input of the FS, FSL-BET
 	## FS stage-1 (average T1w images if there are more than one)
-	echo "Preparing data for ${sub} in freesurfer ..."
+	Info "Preparing data for ${sub} in freesurfer ..."
 	Do_cmd mkdir -p ${anat_dir}/mask/FS/mri/orig
 	Do_cmd mri_convert --in_type nii ${anat_dir}/${T1w}_bc.nii.gz ${anat_dir}/mask/FS/mri/orig/001.mgz
 	## 3.1 FS autorecon1 - skull stripping
 	SUBJECTS_DIR=${anat_dir}/mask
 	if [ ! -f ${SUBJECTS_DIR}/FS/mri/brainmask.mgz ]; then
-	echo "Auto reconstruction stage in Freesurfer (Take half hour ...)"
+	Info "Auto reconstruction stage in Freesurfer (Take half hour ...)"
 	if [[ ${do_gcut} = 'true' ]]; then
 		Do_cmd recon-all -s FS -autorecon1 -notal-check -clean-bm -no-isrunning -noappend -gcut 
 	else
@@ -185,7 +173,7 @@ if [ ${do_skullstrip} = true ]; then
 	fi
 	
 	## generate the registration (FS - original)
-	echo "Generate the registration file FS to original (rawavg) space ..."
+	Info "Generate the registration file FS to original (rawavg) space ..."
 	Do_cmd tkregister2 --mov ${SUBJECTS_DIR}/FS/mri/T1.mgz --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --noedit --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --fslregout ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.FSL.mat --regheader --s FS 
 	## invert affine matrix: invert the FSL affine matrix and transfer back to FS format
 	Do_cmd convert_xfm -omat ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.FSL.mat -inverse ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.FSL.mat
@@ -203,17 +191,17 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd pushd ${anat_dir}/mask
 
 	## 3.2 Do other processing in mask directory (rawavg, the first T1w space)
-	echo "Convert FS brain mask to original space (orientation is the same as the first input T1w)..."
+	Info "Convert FS brain mask to original space (orientation is the same as the first input T1w)..."
 	Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/FS/mri/T1.mgz --o T1.nii.gz
 	Do_cmd mri_vol2vol --targ ${SUBJECTS_DIR}/FS/mri/rawavg.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_fs_To_rawavg.reg --mov ${SUBJECTS_DIR}/FS/mri/brainmask.mgz --o brain_fs.nii.gz
 	Do_cmd fslmaths brain_fs.nii.gz -abs -bin brain_mask_fs.nii.gz
 
 	## 3.3 BET using tight and loose parameter
-	echo "Simply register the T1 image to the standard space ..."
+	Info "Simply register the T1 image to the standard space ..."
 	Do_cmd flirt -in T1.nii.gz -ref ${template_head} -out tmp_head_fs2standard.nii.gz -omat tmp_head_fs2standard.mat -bins 256 -cost corratio 	-searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 12  -interp trilinear
 	Do_cmd convert_xfm -omat tmp_standard2head_fs.mat -inverse tmp_head_fs2standard.mat
 
-	echo "Perform a tight brain extraction ..."
+	Info "Perform a tight brain extraction ..."
 	Do_cmd bet tmp_head_fs2standard.nii.gz tmp.nii.gz -f ${bet_thr_tight} -m
 	Do_cmd fslmaths tmp_mask.nii.gz -mas ${template_init_mask} tmp_mask.nii.gz
 	Do_cmd flirt -in tmp_mask.nii.gz -applyxfm -init tmp_standard2head_fs.mat -out brain_mask_fsl_tight.nii.gz -paddingsize 0.0 -interp 	nearestneighbour -ref T1.nii.gz
@@ -223,7 +211,7 @@ if [ ${do_skullstrip} = true ]; then
 	Do_cmd mri_vol2vol --mov brain_fs+.nii.gz --targ ${SUBJECTS_DIR}/FS/mri/T1.mgz --reg ${SUBJECTS_DIR}/FS/mri/xfm_rawavg_To_fs.reg --o ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz 
 	Do_cmd mri_mask ${SUBJECTS_DIR}/FS/mri/T1.mgz ${SUBJECTS_DIR}/FS/mri/brain_fs+.mgz ${SUBJECTS_DIR}/FS/mri/brainmask.tight.mgz
 
-	echo "Perform a loose brain extraction ..."
+	Info "Perform a loose brain extraction ..."
 	Do_cmd bet tmp_head_fs2standard.nii.gz tmp.nii.gz -f ${bet_thr_loose} -m
 	Do_cmd fslmaths tmp_mask.nii.gz -mas ${template_init_mask} tmp_mask.nii.gz
 	Do_cmd flirt -in tmp_mask.nii.gz -applyxfm -init tmp_standard2head_fs.mat -out brain_mask_fsl_loose.nii.gz -paddingsize 0.0 -interp 	nearestneighbour -ref T1.nii.gz
