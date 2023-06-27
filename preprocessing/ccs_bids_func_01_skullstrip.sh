@@ -122,7 +122,7 @@ if [[ ${use_automask_prior} = "true" ]]; then
   Do_cmd rm masks/${func}_mask.automD.nii.gz
   Do_cmd 3dAutomask -prefix masks/${func}_mask.automD.nii.gz -dilate 1 example_func_bc.nii.gz
   Do_cmd pushd ${func_min_dir}/masks
-  Do_cmd ln -s ${func}_mask.automD.nii.gz ${func}_mask.initD.nii.gz
+  Do_cmd ln -sf ${func}_mask.automD.nii.gz ${func}_mask.initD.nii.gz
   Do_cmd popd
 fi
 if [ ! -z ${mask_prior} ]; then
@@ -130,7 +130,7 @@ if [ ! -z ${mask_prior} ]; then
   Do_cmd 3dcopy ${mask_prior} masks/${func}_mask.prior.nii.gz 
   Do_cmd 3dmask_tool -input masks/${func}_mask.prior.nii.gz -dilate_input 1 -prefix masks/${func}_mask.priorD.nii.gz
   Do_cmd pushd ${func_min_dir}/masks
-  Do_cmd ln -s ${func}_mask.priorD.nii.gz ${func}_mask.initD.nii.gz
+  Do_cmd ln -sf ${func}_mask.priorD.nii.gz ${func}_mask.initD.nii.gz
   Do_cmd popd
 fi
 
