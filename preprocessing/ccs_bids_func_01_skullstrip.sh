@@ -139,13 +139,13 @@ Info "Refine brain mask using native anatomical image"
 if [ ${use_prior_only} = "false" ]; then
   if [ -f ${func_min_dir}/masks/${func}_mask.initD.nii.gz ]; then
     ## anatomical brain as reference to refine the functional mask
-    Do_cmd fslmaths example_func_bc.nii.gz -mas ${func}_mask.initD.nii.gz tmpbrain.nii.gz
+    Do_cmd fslmaths example_func_bc.nii.gz -mas masks/${func}_mask.initD.nii.gz masks/tmpbrain.nii.gz
     # brain to brain initial registration
-    Do_cmd flirt -in ${anat_ref_brain} -ref tmpbrain.nii.gz -out masks/${T1w_image}_To_example_func.init.nii.gz -omat masks/xfm_${T1w_image}_To_example_func.init.mat -cost corratio -dof 6 -interp spline
+    Do_cmd flirt -in ${anat_ref_brain} -ref masks/tmpbrain.nii.gz -out masks/${T1w_image}_To_example_func.init.nii.gz -omat masks/xfm_${T1w_image}_To_example_func.init.mat -cost corratio -dof 6 -interp spline
     Do_cmd convert_xfm -inverse -omat masks/xfm_example_func_To_${T1w_image}.init.mat masks/xfm_${T1w_image}_To_example_func.init.mat
     ## do flirt -bbr
-    Do_cmd flirt -in tmpbrain.nii.gz -ref ${anat_ref_brain} -cost bbr -wmseg ${anat_ref_wm4bbr} -omat masks/xfm_example_func_To_${T1w_image}.mat -dof 6 -init masks/xfm_example_func_To_${T1w_image}.init.mat
-    Do_cmd rm -v tmpbrain.nii.gz
+    Do_cmd flirt -in masks/tmpbrain.nii.gz -ref ${anat_ref_brain} -cost bbr -wmseg ${anat_ref_wm4bbr} -omat masks/xfm_example_func_To_${T1w_image}.mat -dof 6 -init masks/xfm_example_func_To_${T1w_image}.init.mat
+    Do_cmd rm -v masks/tmpbrain.nii.gz
   else
     # head to head initial registration
     Do_cmd flirt -in ${anat_ref_head} -ref example_func_bc.nii.gz -out masks/${T1w_image}_To_example_func.init.nii.gz -omat masks/xfm_${T1w_image}_To_example_func.init.mat -cost corratio -dof 6 -interp spline
