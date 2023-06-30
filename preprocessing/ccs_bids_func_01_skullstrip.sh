@@ -148,11 +148,12 @@ if [ ${use_prior_only} = "false" ]; then
     Do_cmd convert_xfm -inverse -omat masks/xfm_${T1w_image}_To_example_func.mat masks/xfm_example_func_To_${T1w_image}.mat
     Do_cmd rm -f masks/${T1w_image}_maskD.nii.gz
     Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix masks/${T1w_image}_maskD.nii.gz
-    # refine with nonlinear
-    Do_cmd flirt -ref example_func_bc.nii.gz -in ${anat_ref_brain} -applyxfm -init masks/xfm_${T1w_image}_To_example_func.mat -interp spline -out masks/tmpbrain.nii.gz 
-    Do_cmd fnirt --in=${anat_ref_brain} --ref=masks/tmpbrain.nii.gz --aff=masks/xfm_${T1w_image}_To_example_func.mat --fout=masks/fnirt_anat2func_warp.nii.gz --iout=masks/fnirt_anat2func.nii.gz
-    Do_cmd applywarp --rel --interp=nn -i masks/${T1w_image}_maskD.nii.gz -r example_func_bc.nii.gz -w masks/fnirt_anat2func_warp.nii.gz -o masks/${func}_mask.anatD.nii.gz
-    #Do_cmd flirt -ref example_func.nii.gz -in masks/${T1w_image}_maskD.nii.gz -applyxfm -init masks/xfm_${T1w_image}_To_example_func.mat -interp nearestneighbour -out masks/${func}_mask.anatD.nii.gz
+    ## refine with linear
+    Do_cmd flirt -ref example_func.nii.gz -in masks/${T1w_image}_maskD.nii.gz -applyxfm -init masks/xfm_${T1w_image}_To_example_func.mat -interp nearestneighbour -out masks/${func}_mask.anatD.nii.gz
+    ## refine with nonlinear
+    #Do_cmd flirt -ref example_func_bc.nii.gz -in ${anat_ref_brain} -applyxfm -init masks/xfm_${T1w_image}_To_example_func.mat -interp spline -out masks/tmpbrain.nii.gz 
+    #Do_cmd fnirt --in=${anat_ref_brain} --ref=masks/tmpbrain.nii.gz --aff=masks/xfm_${T1w_image}_To_example_func.mat --fout=masks/fnirt_anat2func_warp.nii.gz --iout=masks/fnirt_anat2func.nii.gz
+    #Do_cmd applywarp --rel --interp=nn -i masks/${T1w_image}_maskD.nii.gz -r example_func_bc.nii.gz -w masks/fnirt_anat2func_warp.nii.gz -o masks/${func}_mask.anatD.nii.gz
     Do_cmd rm -v masks/tmpbrain.nii.gz
   else
     # head to head initial registration
