@@ -127,8 +127,8 @@ if [[ ${use_automask_prior} = "true" ]]; then
 fi
 if [ ! -z ${mask_prior} ]; then
   rm 
-  Do_cmd 3dcopy ${mask_prior} masks/${func}_mask.prior.nii.gz 
-  Do_cmd 3dmask_tool -input masks/${func}_mask.prior.nii.gz -dilate_input 1 -prefix masks/${func}_mask.priorD.nii.gz
+  Do_cmd 3dcopy ${mask_prior} masks/${func}_mask.prior.nii.gz -overwrite
+  Do_cmd 3dmask_tool -input masks/${func}_mask.prior.nii.gz -dilate_input 1 -prefix masks/${func}_mask.priorD.nii.gz -overwrite
   Do_cmd pushd ${func_min_dir}/masks
   Do_cmd ln -sf ${func}_mask.priorD.nii.gz ${func}_mask.initD.nii.gz
   Do_cmd popd
@@ -145,18 +145,27 @@ if [ ${use_prior_only} = "false" ]; then
     Do_cmd convert_xfm -inverse -omat masks/xfm_example_func_To_${T1w_image}.init.mat masks/xfm_${T1w_image}_To_example_func.init.mat
     ## do flirt -bbr
     Do_cmd flirt -in masks/tmpbrain.nii.gz -ref ${anat_ref_brain} -cost bbr -wmseg ${anat_ref_wm4bbr} -omat masks/xfm_example_func_To_${T1w_image}.mat -dof 6 -init masks/xfm_example_func_To_${T1w_image}.init.mat
+    Do_cmd convert_xfm -inverse -omat masks/xfm_${T1w_image}_To_example_func.mat masks/xfm_example_func_To_${T1w_image}.mat
+    Do_cmd rm -f masks/${T1w_image}_maskD.nii.gz
+    Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix masks/${T1w_image}_maskD.nii.gz
+    # refine with nonlinear
+    Do_cmd flirt -ref example_func_bc.nii.gz -in ${anat_ref_brain} -applyxfm -init masks/xfm_${T1w_image}_To_example_func.mat -interp spline -out masks/tmpbrain.nii.gz 
+    Do_cmd fnirt --in=${anat_ref_brain} --ref=masks/tmpbrain.nii.gz --aff=masks/xfm_${T1w_image}_To_example_func.mat --fout=masks/fnirt_anat2func_warp.nii.gz --iout=masks/fnirt_anat2func.nii.gz
+    Do_cmd applywarp --rel --interp=nn -i masks/${T1w_image}_maskD.nii.gz -r example_func_bc.nii.gz -w masks/fnirt_anat2func_warp.nii.gz -o masks/${func}_mask.anatD.nii.gz
+    #Do_cmd flirt -ref example_func.nii.gz -in masks/${T1w_image}_maskD.nii.gz -applyxfm -init masks/xfm_${T1w_image}_To_example_func.mat -interp nearestneighbour -out masks/${func}_mask.anatD.nii.gz
     Do_cmd rm -v masks/tmpbrain.nii.gz
   else
     # head to head initial registration
     Do_cmd flirt -in ${anat_ref_head} -ref example_func_bc.nii.gz -out masks/${T1w_image}_To_example_func.init.nii.gz -omat masks/xfm_${T1w_image}_To_example_func.init.mat -cost corratio -dof 6 -interp spline
     Do_cmd convert_xfm -inverse -omat masks/xfm_example_func_To_${T1w_image}.init.mat masks/xfm_${T1w_image}_To_example_func.init.mat
     ## do flirt -bbr
-    Do_cmd flirt -in example_func_bc.nii.gz -ref ${anat_ref_head} -cost bbr -wmseg ${anat_ref_wm4bbr} -omat masks/xfm_example_func_To_${T1w_image}.mat -dof 6 -init masks/xfm_example_func_To_${T1w_image}.init.mat 
+    Do_cmd flirt -in example_func_bc.nii.gz -ref ${anat_ref_head} -cost bbr -wmseg ${anat_ref_wm4bbr} -omat masks/xfm_example_func_To_${T1w_image}.mat -dof 6 -init masks/xfm_example_func_To_${T1w_image}.init.mat
+
+    Do_cmd convert_xfm -inverse -omat masks/xfm_${T1w_image}_To_example_func.mat masks/xfm_example_func_To_${T1w_image}.mat
+    Do_cmd rm -f masks/${T1w_image}_maskD.nii.gz
+    Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix masks/${T1w_image}_maskD.nii.gz
+    Do_cmd flirt -ref example_func.nii.gz -in masks/${T1w_image}_maskD.nii.gz -applyxfm -init masks/xfm_${T1w_image}_To_example_func.mat -interp nearestneighbour -out masks/${func}_mask.anatD.nii.gz
   fi
-  Do_cmd convert_xfm -inverse -omat masks/xfm_${T1w_image}_To_example_func.mat masks/xfm_example_func_To_${T1w_image}.mat
-  Do_cmd rm -f masks/${T1w_image}_maskD.nii.gz
-  Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix masks/${T1w_image}_maskD.nii.gz
-  Do_cmd flirt -ref example_func.nii.gz -in masks/${T1w_image}_maskD.nii.gz -applyxfm -init masks/xfm_${T1w_image}_To_example_func.mat -interp nearestneighbour -out masks/${func}_mask.anatD.nii.gz
   # fill holes
   Do_cmd rm -f masks/${func}_mask.nii.gz
   Do_cmd 3dmask_tool -input masks/${func}_mask.anatD.nii.gz -prefix masks/${func}_mask.nii.gz -fill_holes  
