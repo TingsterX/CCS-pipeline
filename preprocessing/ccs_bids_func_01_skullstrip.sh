@@ -48,7 +48,7 @@ source ${CCSPIPELINE_DIR}/global/utilities.sh
 ## arguments pasting
 func_dir=`getopt1 "--func_dir" $@`
 func_name=`getopt1 "--func_name" $@`
-use_prior_only=`getopt1 "--use_anatuse_prior_only_refine" $@`
+use_prior_only=`getopt1 "--use_prior_only" $@`
 use_automask_prior=`getopt1 "--use_automask_prior" $@`
 anat_dir=`getopt1 "--anat_dir" $@`
 anat_ref_name=`getopt1 "--anat_ref_name" $@`
@@ -66,7 +66,7 @@ anat_ref_name=`defaultopt ${anat_ref_name} T1w`
 func_min_dir_name=`defaultopt ${func_min_dir_name} func_minimal`
 
 ## Setting up logging
-#exec > >(tee "Logs/${func_dir}/${0/.sh/.txt}") 2>&1
+#exec > >(tee "${func_dir}/${0/.sh/.txt}") 2>&1
 #set -x 
 
 Title "func preprocessing step 1: generate mask for minimal preprocessed dta"
