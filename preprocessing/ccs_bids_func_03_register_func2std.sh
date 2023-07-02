@@ -64,7 +64,7 @@ ref_brain=`defaultopt ${ref_brain} ${FSLDIR}/data/standard/MNI152_T1_2mm_brain.n
 #exec > >(tee "Logs/${func_dir}/${0/.sh/.txt}") 2>&1
 #set -x 
 
-Title "func preprocessing step 1: generate mask for minimal preprocessed dta"
+Title "Function Pipeline: registration (func->std) "
 Note "func_name=           ${func}"
 Note "func_dir=            ${func_dir}"
 Note "anat_dir=            ${anat_dir}"

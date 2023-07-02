@@ -71,7 +71,7 @@ SUBJECTS_DIR=`defaultopt ${SUBJECTS_DIR} ${anat_dir}/${subject}`
 #exec > >(tee "Logs/${func_dir}/${0/.sh/.txt}") 2>&1
 #set -x 
 
-Title "func preprocessing step 1: generate mask for minimal preprocessed dta"
+Title "Function Pipeline: registration (func->anat) "
 Note "func_name=           ${func}"
 Note "func_dir=            ${func_dir}"
 Note "anat_dir=            ${anat_dir}"
@@ -176,8 +176,7 @@ else
 fi
 
 ##---------------------------------------------
-# generate the initial brain mask for unwarped image
-Info "Generate initial brain mask ..."
+# generate the  brain mask for unwarped image
 Do_cmd rm -f ${func_pp_dir}/masks/${T1w_image}_maskD.nii.gz
 Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix ${func_pp_dir}/masks/${T1w_image}_maskD.nii.gz
 if [ ${dc_method} = "none" ]; then
@@ -309,6 +308,7 @@ Do_cmd fslmaths ${epi} -mas ${func_pp_dir}/masks/${func}_pp_mask.nii.gz ${epi_br
 
 ## refine brain mask to raw example_func space if distortion correction was applied
 if [ ${dc_method} = "none" ]; then
+  Do_cmd rm ${func_pp_dir}/example_func_pp_mask.nii.gz
   Do_cmd 3dcopy ${func_pp_dir}/masks/${func}_pp_mask.nii.gz ${func_pp_dir}/example_func_pp_mask.nii.gz
 else
   Do_cmd applywarp --rel --interp=nn --in=${func_pp_dir}/masks/${func}_pp_mask.nii.gz --ref=${func_pp_dir}/example_func_bc.nii.gz --warp=${func_reg_dir}/unwarped2raw.nii.gz --out=${func_pp_dir}/example_func_pp_mask.nii.gz
