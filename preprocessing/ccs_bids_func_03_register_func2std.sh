@@ -46,7 +46,7 @@ defaultopt() {
 source ${CCSPIPELINE_DIR}/global/utilities.sh
 ## arguments pasting
 func_dir=`getopt1 "--func_dir" $@`
-func_name=`getopt1 "--func_name" $@`
+func=`getopt1 "--func_name" $@`
 anat_dir=`getopt1 "--anat_dir" $@`
 anat_ref_name=`getopt1 "--anat_ref_name" $@`
 ref_brain=`getopt1 "--ref_brain" $@`
@@ -54,7 +54,7 @@ dc_method=`getopt1 "--dc_method" $@`
 func_min_dir_name=`getopt1 "--func_min_dir_name" $@`
 
 ## default parameter
-func=`defaultopt ${func_name} func`
+func=`defaultopt ${func} func`
 anat_ref_name=`defaultopt ${anat_ref_name} T1w`
 dc_method=`defaultopt ${dc_method} none`
 func_min_dir_name=`defaultopt ${func_min_dir_name} func_minimal`

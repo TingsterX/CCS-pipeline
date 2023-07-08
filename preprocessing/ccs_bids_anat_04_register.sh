@@ -17,11 +17,11 @@ Usage: ${0}
   --ref_mask=[initial template mask], default=${FSLDIR}/data/standard/MNI152_T1_2mm_brain_mask_dil.nii.gz
   --ref_highres=[template write out], default=${FSLDIR}/data/standard/MNI152_T1_1mm_brain.nii.gz
   --anat_dir=<anatomical directory>, e.g. base_dir/subID/anat or base_dir/subID/sesID/anat
-  --subject=<subject ID>, e.g. sub001 
   --T1w_name=[T1w name], default=T1w
   --reg_method=[FSL, ANTS], default=FSL
   --fnirt_config=[fnirt configuration], default=${FSLDIR}/etc/flirtsch/T1_2_MNI152_2mm.cnf
   --ref_nonlinear=[head, brain], default=head
+  --apply_reg_only=[false, true], default=false
 EOF
 }
 
@@ -54,10 +54,10 @@ template_brain=`getopt1 "--ref_brain" $@`
 template_mask=`getopt1 "--ref_mask" $@`
 template_highres=`getopt1 "--ref_highres" $@`
 anat_dir=`getopt1 "--anat_dir" $@`
-subject=`getopt1 "--subject" $@`
 T1w=`getopt1 "--T1w_name" $@`
 reg_method=`getopt1 "--reg_method" $@`
 fnirt_config=`getopt1 "--fnirt_config" $@`
+apply_reg_only=`getopt1 "--apply_reg_only" $@`
 
 ## default parameter
 template_head=`defaultopt ${template_head} ${FSLDIR}/data/standard/MNI152_T1_2mm.nii.gz`
@@ -68,6 +68,7 @@ T1w=`defaultopt ${T1w} T1w`
 reg_method=`defaultopt ${reg_method} FSL`
 fnirt_config=`defaultopt ${fnirt_config} ${FSLDIR}/etc/flirtsch/T1_2_MNI152_2mm.cnf`
 ref_nonlinear=`defaultopt ${ref_nonlinear} head`
+apply_reg_only=`defaultopt ${apply_reg_only} false`
 
 ## Setting up logging
 #exec > >(tee "Logs/${subject}/${0/.sh/.txt}") 2>&1
@@ -79,10 +80,10 @@ Note "ref_head=            ${template_head}"
 Note "ref_brain=           ${template_head}"
 Note "ref_mask=            ${template_mask}"
 Note "anat_dir=            ${anat_dir}"
-Note "subject=             ${subject}"
 Note "T1w_name             ${T1w}"
 Note "reg_method=          ${reg_method}"
 Note "fnirt_config=        ${fnirt_config}"
+Note "apply_reg_only=      ${apply_reg_only}"
 echo "------------------------------------------------"
 
 # ----------------------------------------------------
@@ -128,10 +129,10 @@ if [ ! -f ${T1w_brain} ]; then
   popd
 fi
 
-echo -----------------------------------------
-Title !!!! RUNNING ANATOMICAL REGISTRATION !!!!
-echo -----------------------------------------
+Title RUNNING ANATOMICAL REGISTRATION 
 
+
+if [ ${apply_reg_only} = "false" ]; then
 pushd ${anat_reg_dir}
 if [ ${reg_method} = "FSL" ]; then
   Info "Registration using FSL"
@@ -177,6 +178,7 @@ elif [ ${reg_method} = "ANTS" ]; then
 fi
 popd
 
+fi
 
 # applywarp to native space to template space T1w_acpc_* 
 Info "apply warp to native head and mask"

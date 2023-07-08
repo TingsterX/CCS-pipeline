@@ -15,15 +15,13 @@ Usage: ${0}
   --func_name=[func], name of the functional data, default=func (e.g. <func_dir>/func.nii.gz)
   --anat_dir=<anatomical directory>, specify the anat directory 
   --anat_ref_name=<T1w, T2w>, name of the anatomical reference name, default=T1w
-  --do_anat_refine_mask=[false, true], refine masks using anat image, default=true
+  --epi2=<intermediate epi>
+  --brain2=<intermediate anatomical brain>
+  --epi2_to_brain2=<mat or warp from intermediate epi to intermediate anat brain>
   --dc_method=[none, topup, fugue, omni]
   --dc_dir=[path to the distortion corrected directory which contains example_func_bc_dc.nii.gz]
-  --reg_method=[flirt, flirbbr, fsbbr], default=flirtbbr
+  --reg_method=[flirt, flirbbr], default=flirt
   --func_min_dir_name=[func_minimal], default=func_minimal
-  --SUBJECTS_DIR=[path to the FreeSurfer folder], specify this option if using fsbbr
-  --subject=[subject ID used in FreeSurfer], specify this option if using fsbbr
-  --select_reg_output=[flirt, flirbbr, fsbbr], select registration output, default=NULL
-  --select_reg_only=[true, false], only copy the selected registration output, default=false
 EOF
 }
 
@@ -55,28 +53,19 @@ func_dir=`getopt1 "--func_dir" $@`
 func=`getopt1 "--func_name" $@`
 anat_dir=`getopt1 "--anat_dir" $@`
 anat_ref_name=`getopt1 "--anat_ref_name" $@`
-do_anat_refine_mask=`getopt1 "--do_anat_refine_mask" $@`
+epi2=`getopt1 "--epi2" $@`
+brain2=`getopt1 "--brain2" $@`
 dc_method=`getopt1 "--dc_method" $@`
 dc_dir=`getopt1 "--dc_dir" $@`
 reg_method=`getopt1 "--reg_method" $@`
 func_min_dir_name=`getopt1 "--func_min_dir_name" $@`
-SUBJECTS_DIR=`getopt1 "--SUBJECTS_DIR" $@`
-subject=`getopt1 "--subject" $@`
-select_reg_output=`getopt1 "--select_reg_output" $@`
-select_reg_only=`getopt1 "--select_reg_only" $@`
-
-
 
 ## default parameter
 func=`defaultopt ${func} func`
 anat_ref_name=`defaultopt ${anat_ref_name} T1w`
-do_anat_refine_mask=`defaultopt ${do_anat_refine_mask} true`
 dc_method=`defaultopt ${dc_method} none`
-reg_method=`defaultopt ${reg_method} flirtbbr`
-select_reg_only=`defaultopt ${select_reg_only} false`
+reg_method=`defaultopt ${reg_method} flirt`
 func_min_dir_name=`defaultopt ${func_min_dir_name} func_minimal`
-SUBJECTS_DIR=`defaultopt ${SUBJECTS_DIR} ${anat_dir}/${subject}`
-
 
 ## Setting up logging
 #exec > >(tee "Logs/${func_dir}/${0/.sh/.txt}") 2>&1
@@ -87,15 +76,13 @@ Note "func_name=           ${func}"
 Note "func_dir=            ${func_dir}"
 Note "anat_dir=            ${anat_dir}"
 Note "anat_ref_name=       ${anat_ref_name}"
-Note "do_anat_refine_mask= ${do_anat_refine_mask}"
+Note "epi2=                ${epi2}"
+Note "brain2=              ${brain2}"
 Note "dc_method=           ${dc_method}"
 Note "dc_dir=              ${dc_dir}"
 Note "reg_method=          ${reg_method}"
 Note "func_min_dir_name=   ${func_min_dir_name}"
-Note "SUBJECTS_DIR=        ${SUBJECTS_DIR}"
-Note "subject=             ${subject}"
-Note "select_reg_output=   ${select_reg_output}"
-Note "select_reg_only=     ${select_reg_only}"
+
 echo "------------------------------------------------"
 
 T1w_image=${anat_ref_name}_acpc_dc
@@ -149,22 +136,11 @@ else
   exit 1
 fi
 
-if [[ ${reg_method} != "fsbbr" ]] && [[ ${reg_method} != "flirtbbr" ]] && [[ ${reg_method} != "flirt" ]]; then
+if [[ ${reg_method} != "flirtbbr" ]] && [[ ${reg_method} != "flirt" ]]; then
   Error "!!! Check and select the registration method option (reg_method): fsbbr, flirtbbr, flirt"
   exit 1
 fi
 
-if [[ ${select_reg_output} != "fsbbr" ]] && [[ ${select_reg_output} != "flirtbbr" ]] && [[ ${select_reg_output} != "flirt" ]]; then
-  Error "!!! Check and select the registration method option (reg_method): fsbbr, flirtbbr, flirt"
-  exit 1
-fi
-
-if [[ ${reg_method} = "fsbbr" ]]; then
-  if [ -f ${SUBJECTS_DIR}/${subject}/mri/aseg.mgz ]; then
-    Error "fsbbr is selected but FreeSurfer preprocessed data doesn't exist"
-  exit 1
-  fi
-fi
 #####################################################################################################################
   
 #exec > >(tee "Logs/${subject}/${0/.sh/.txt}") 2>&1
@@ -174,10 +150,6 @@ fi
 func_pp_dir=${func_dir}/${func_pp_dir_name}
 func_reg_dir=${func_dir}/${func_pp_dir_name}/xfms
 mkdir -p ${func_reg_dir}
-mkdir -p ${func_pp_dir}/masks
-
-Do_cmd rm -r ${func_pp_dir}/example_func_bc.nii.gz
-Do_cmd 3dcopy ${func_min_dir}/example_func_bc.nii.gz ${func_pp_dir}/example_func_bc.nii.gz
 
 ## copy the input example_func and unwarp
 if [ ${dc_method} = "none" ]; then
@@ -188,83 +160,20 @@ else
   epi=${func_pp_dir}/example_func_unwarped.nii.gz
   epi_brain_init=${func_pp_dir}/masks/example_func_unwarped_brain.init.nii.gz
   epi_brain=${func_pp_dir}/example_func_unwarped_brain.nii.gz
-  if [ ${select_reg_only} = "false" ]; then
-    rm -f ${epi}
-    Do_cmd 3dcopy ${dc_dir}/example_func_unwarped.nii.gz ${func_pp_dir}/example_func_unwarped.nii.gz
-    Do_cmd cp ${dc_dir}/xfms/raw2unwarped.nii.gz ${func_pp_dir}/xfms/raw2unwarped.nii.gz
-    Do_cmd cp ${dc_dir}/xfms/unwarped2raw.nii.gz ${func_pp_dir}/xfms/unwarped2raw.nii.gz
-  fi
 fi
 
+mkdir ${func_reg_dir}/intermediate_epi
+mkdir ${func_reg_dir}/intermediate_epi/vcheck
+pushd ${func_reg_dir}/intermediate_epi
+##---------------------------------------------
+## intermediate anat brain to anat brain
+Do_cmd flirt -in ${brain2} -ref ${anat_ref_brain} -cost corratio -omat xfm_intermediate_brain2anat.mat -dof 12
+Do_cmd fnirt --in=${brain2} --ref=${anat_ref_brain} --aff=xfm_intermediate_brain2anat.mat --fout=intermediate_brain2anat_warp.nii.gz --iout=intermediate_brain2anat.nii.gz
+Do_cmd vcheck_reg intermediate_brain2anat.nii.gz ${anat_ref_brain} vcheck/figure_intermediate_brain2anat_with_anat_boundary.png
 
-if [ ${select_reg_only} = "false" ]; then
-  ##---------------------------------------------
-  # generate the  brain mask for unwarped image
-  Do_cmd rm -f ${func_pp_dir}/masks/${T1w_image}_maskD.nii.gz
-  Do_cmd 3dmask_tool -input ${anat_ref_mask} -dilate_input 1 -prefix ${func_pp_dir}/masks/${T1w_image}_maskD.nii.gz
-  if [ ${dc_method} = "none" ]; then
-    Info "Use brain mask generated from func_minimal as the initial brain mask..."
-    rm -f ${epi_brain_init}
-    Do_cmd 3dcopy ${func_min_dir}/example_func_bc_brain.nii.gz ${epi_brain_init}
-  else
-    Info "Generate initial brain mask for distortion corrected example_func_unwarped ..."
-    pushd ${func_pp_dir}
-    # head to head initial registration
-    Do_cmd flirt -in ${anat_ref_head} -ref ${epi} -out masks/${T1w_image}_To_example_func.init.nii.gz -omat masks/xfm_${T1w_image}_To_example_func.init.mat -cost corratio -dof 6 -interp spline
-    Do_cmd convert_xfm -omat masks/xfm_example_func_To_${T1w_image}.init.mat -inverse masks/xfm_${T1w_image}_To_example_func.init.mat 
-    ## do flirt -bbr
-    Do_cmd flirt -in ${epi} -ref ${anat_ref_head} -cost bbr -wmseg ${anat_ref_wm4bbr} -omat masks/xfm_example_func_To_${T1w_image}.mat -dof 6 -init masks/xfm_example_func_To_${T1w_image}.init.mat 
-    Do_cmd convert_xfm -omat masks/xfm_${T1w_image}_To_example_func.mat -inverse masks/xfm_example_func_To_${T1w_image}.mat
-    Do_cmd flirt -ref ${epi} -in masks/${T1w_image}_maskD.nii.gz -applyxfm -init masks/xfm_${T1w_image}_To_example_func.mat -interp nearestneighbour -out masks/${func}_mask.anatD.nii.gz
-    # fill holes
-    Do_cmd rm -f masks/${func}_mask.nii.gz
-    Do_cmd 3dmask_tool -input masks/${func}_mask.anatD.nii.gz -prefix masks/${func}_mask.nii.gz -fill_holes
-    Do_cmd fslmaths ${epi} -mas masks/${func}_mask.nii.gz ${epi_brain_init}
-    popd
-  fi
-  
-  
-  ##---------------------------------------------
-  ## do FS bbregister
-  if [[ ${reg_method} == "fsbbr" ]]; then
-    mkdir ${func_reg_dir}/fsbbr
-    pushd ${func_reg_dir}/fsbbr
-    ## convert the example_func to RSP orient
-    rm -f tmp_example_func_brain_rsp.nii.gz
-    Do_cmd 3dresample -orient RSP -prefix tmp_example_func_brain_rsp.nii.gz -inset ${epi_brain_init}
-    Do_cmd fslreorient2std tmp_example_func_brain_rsp.nii.gz > func_rsp2rpi.mat
-    Do_cmd convert_xfm -omat func_rpi2rsp.mat -inverse func_rsp2rpi.mat
-    echo "-----------------------------------------------------"
-    Info "func->anat registration method: Freesurfer bbregister"
-    echo "-----------------------------------------------------"
-    
-    ## do fs bbregist
-    mov_rsp=tmp_example_func_brain_rsp.nii.gz
-    Do_cmd bbregister --s ${subject} --mov ${mov_rsp} --reg bbregister_rsp2rsp.dof6.init.dat --init-fsl --bold --fslmat xfm_func_rsp2fsbrain.init.mat
-    bb_init_mincost=`cut -c 1-8 bbregister_rsp2rsp.dof6.init.dat.mincost`
-    comp=`expr ${bb_init_mincost} \> 0.55`
-    if [ "$comp" -eq "1" ]; then
-      Do_cmd bbregister --s ${subject} --mov ${mov_rsp} --reg bbregister_rsp2rsp.dof6.dat --init-reg bbregister_rsp2rsp.dof6.init.dat --bold --fslmat xfm_func_rsp2fsbrain.mat
-      bb_mincost=`cut -c 1-8 bbregister_rsp2rsp.dof6.dat.mincost`
-      comp=`expr ${bb_mincost} \> 0.55`
-      if [ "$comp" -eq "1" ]; then
-        echo "BBregister seems still problematic, needs a posthoc visual inspection!" >> warnings.bbregister
-      fi
-    else
-      mv bbregister_rsp2rsp.dof6.init.dat bbregister_rsp2rsp.dof6.dat 
-      mv xfm_func_rsp2fsbrain.init.mat xfm_func_rsp2fsbrain.mat
-    fi
-    ## concat reg matrix: func_rpi to highres(rsp)
-    Do_cmd convert_xfm -omat xfm_func2fsbrain.mat -concat xfm_func_rsp2fsbrain.mat func_rpi2rsp.mat
-    ## write func_rpi to highres(rsp) to fs registration format 
-    Do_cmd tkregister2 --mov ${epi} --targ ${SUBJECTS_DIR}/${subject}/mri/T1.mgz --fsl xfm_func2fsbrain.mat --noedit --s ${subject} --reg bbregister.dof6.dat
-    # concat func->fs_T1 fs_T1->fs_rawavg (acpc)
-    Do_cmd convert_xfm -omat xfm_func2rawavg.mat -concat ${SUBJECTS_DIR}/${subject}/mri/xfm_fs_To_rawavg.FSL.mat xfm_func2fsbrain.mat
-    
-    # copy to xfms folder
-    Do_cmd cp xfm_func2rawavg.mat xfm_example_func_To_${T1w_image}.mat
-    popd
-  fi
+##  NOT FINISHED YET!!!!!!!!!!!!!!!!!!!!!!!!!
+## epi register to intermediate epi
+
     
   ##---------------------------------------------
   ## do flirt -bbr

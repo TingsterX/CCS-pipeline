@@ -1,42 +1,77 @@
 #!/usr/bin/env bash
-## File takes in func directory, functional data, fieldmap data (if any), and distortion correction type
-## Need to have 3 types of distortion correction, usage dictated by input parameter
-## IFS:
-## If fsl_prepare_fieldmap, need to know if its already in radians
 
-## set default values if not supplied
-delta_TE=2.46
+##########################################################################################################################
+## Sam Alldritt, Tng Xu
+##########################################################################################################################
 
-## Put in flag architecture
+Usage() {
+	cat <<EOF
 
-while test $# -gt 0; do 
-    case "$1" in
-        -d)
-            shift
-            if test $# -gt 0; then
-                export base_directory=$1
-            else
-                echo "No base directory specified (path/to/subject_folder)"
-                exit 1
-            fi
-            shift
-            ;;
-        --topup)
-            shift
-            export topup=true
-            ;;
-        --fugue)
-            shift
-            export fugue=true
-            ;;
-        --omni)
-            shift
-            export omni=true
-            ;;
-        --no-dc)
-            shift
-            export no_dc=true
-            ;;
+${0}: Function Pipeline: distortion correction ()
+
+Usage: ${0}
+  --func_dir=<functional directory>, e.g. base_dir/subID/func/sub-X_task-X/
+  --func_name=[func], name of the functional data, default=func (e.g. <func_dir>/func.nii.gz)
+  --anat_dir=<anatomical directory>, specify the anat directory 
+  --anat_ref_name=<T1w, T2w>, name of the anatomical reference name, default=T1w
+  --dc_method=[none, topup, fugue, omni]
+  --dc_dir=[path to the distortion corrected directory which contains example_func_bc_dc.nii.gz]
+EOF
+}
+
+# Return a Usage statement
+if [ "$#" = "0" ]; then
+    Usage
+    exit 1
+fi
+
+# function for parsing options
+getopt1() {
+  sopt="$1"
+  shift 1
+  for fn in $@ ; do
+    if [ `echo $fn | grep -- "^${sopt}=" | wc -w` -gt 0 ] ; then
+     echo $fn | sed "s/^${sopt}=//"
+     return 0
+    fi
+  done
+}
+
+defaultopt() {
+    echo $1
+}
+
+source ${CCSPIPELINE_DIR}/global/utilities.sh
+## arguments pasting
+func_dir=`getopt1 "--func_dir" $@`
+func=`getopt1 "--func_name" $@`
+anat_dir=`getopt1 "--anat_dir" $@`
+anat_ref_name=`getopt1 "--anat_ref_name" $@`
+dc_method=`getopt1 "--dc_method" $@`
+dc_dir=`getopt1 "--dc_dir" $@`
+
+## default parameter
+func=`defaultopt ${func} func`
+anat_ref_name=`defaultopt ${anat_ref_name} T1w`
+dc_method=`defaultopt ${dc_method} none`
+func_min_dir_name=`defaultopt ${func_min_dir_name} func_minimal`
+
+
+## Setting up logging
+#exec > >(tee "Logs/${func_dir}/${0/.sh/.txt}") 2>&1
+#set -x 
+
+Title "Function Pipeline: registration (func->anat) "
+Note "func_name=           ${func}"
+Note "func_dir=            ${func_dir}"
+Note "anat_dir=            ${anat_dir}"
+Note "anat_ref_name=       ${anat_ref_name}"
+Note "dc_method=           ${dc_method}"
+Note "dc_dir=              ${dc_dir}"
+Note "func_min_dir_name=   ${func_min_dir_name}"
+echo "------------------------------------------------"
+
+
         --program)
             shift
             export program=$1
